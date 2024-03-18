@@ -1,0 +1,25 @@
+* {
+  background-color: #404040;
+  color: white;
+}
+
+#buttons {
+  display: flex;
+}
+
+#inputs {
+  display: flex;
+  grid-template-columns: 2;
+}
+
+button {
+  height: 80px;
+  width: 200px;
+  font-size: larger;
+}
+
+input {
+  height: 80px;
+  width: 200px;
+  font-size: larger;
+}
