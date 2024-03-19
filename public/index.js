@@ -27,20 +27,36 @@ const elements = {
   detune: document.getElementById("detune"),
   /** @type {HTMLOutputElement} */
   detuneValue: document.getElementById("detuneValue"),
-}
-const audioContext = new AudioContext();
 
-start()
+  /** @type {HTMLButtonElement} */
+  playhead: document.getElementById("playhead"),
+}
+
+document.addEventListener('click', start, { once: true })
 async function start() {
+  const audioContext = new AudioContext();
   await audioContext.audioWorklet.addModule('sbuffer-source-processor.js');
   const node = new SBufferSourceNode(audioContext);
   const file = "https://alive.evolutiongaming.com/frontend/gametech/sounds/rage/desktop/bigWinIntro.webm"
   const buffer = await decode(audioContext, file)
+  node.buffer = buffer
+
+
+  const lp = audioContext.createBiquadFilter()
+  lp.type = 'lowpass'
+  lp.frequency.value = 10000
+
+  node.connect(lp).connect(audioContext.destination)
+
   elements.loopStart.max = buffer.duration
   elements.loopEnd.max = buffer.duration
 
-  node.connect(audioContext.destination)
-  node.buffer = buffer
+  elements.playhead.onclick = () => {
+    console.log(node.playhead)
+    node.getPlayhead().then((head) => {
+      console.log('current playhead is', head)
+    })
+  }
 
   elements.start.onclick = () => node.start()
   elements.stop.onclick = () => node.stop()
@@ -51,21 +67,21 @@ async function start() {
     console.log(node.loop)
   })
   elements.loopStart.oninput = () => {
-    node.loopStart = elements.loopStartValue.value = elements.loopStart.value
+    elements.loopStartValue.value = elements.loopStart.value
+    node.loopStart = Number(elements.loopStart.value)
   }
   elements.loopEnd.oninput = () => {
-    node.loopEnd = elements.loopEndValue.value = elements.loopEnd.value
+    elements.loopEndValue.value = elements.loopEnd.value
+    node.loopEnd = Number(elements.loopEnd.value)
   }
   elements.playBackRate.oninput = () => {
-    node.playbackRate.value = elements.playBackRateValue.value = elements.playBackRate.value
+    elements.playBackRateValue.value = elements.playBackRate.value
+    node.playbackRate.value = Number(elements.playBackRate.value)
   }
   elements.detune.oninput = () => {
-    node.detune.value = elements.detuneValue.value = elements.detune.value
+    elements.detuneValue.value = elements.detune.value
+    node.detune.value = Number(elements.detune.value)
   }
-}
-
-function stop() {
-  audioContext.close()
 }
 
 

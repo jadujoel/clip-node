@@ -1,6 +1,7 @@
 * {
   background-color: #404040;
   color: white;
+  font-size: larger;
 }
 
 #buttons {
@@ -8,8 +9,11 @@
 }
 
 #inputs {
-  display: flex;
-  grid-template-columns: 2;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  /* make sure we center all text, elements etc vertically */
+  align-items: center;
+  justify-content: center;
 }
 
 button {

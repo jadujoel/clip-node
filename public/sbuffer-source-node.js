@@ -1,21 +1,56 @@
 
 
+const State = {
+    Initial: 0,
+    Started: 1,
+    Stopped: 2,
+    Paused: 3,
+}
 
 /** @type {AudioBufferSourceNode} */
 export class SBufferSourceNode extends AudioWorkletNode {
     /** @param {AudioContext} audioContext */
     constructor(audioContext) {
-        super(audioContext, 'sbuffer-source-processor');
+        super(audioContext, 'sbuffer-source-processor', { numberOfInputs: 0, outputChannelCount: [2] });
         this._buffer = null; // To hold the AudioBuffer
         this.sampleRate = audioContext.sampleRate; // You might need this for calculations
-        this.port.onmessage = (event) => {
-            console.log(event.data)
-        };
         this._onended = () => {}
         this._loopStart = 0
         this._loopEnd = 0
         this._loop = false
         this._duration = 0
+        this.timesLooped = 0
+        this.playhead = 0
+        this.state = State.Initial
+        this.port.onmessage = message => {
+            if (message.type !== "message") {
+                return
+            }
+            const { type, data } = message.data
+            switch (type) {
+                case 'playhead':
+                    this.playhead = data
+                    break
+                case 'ended':
+                    this._onended()
+                    break
+                case 'looped':
+                    this.timesLooped++
+                    break
+                case 'started':
+                    this.state = State.Started
+                    break
+                case 'stopped':
+                    this.state = State.Stopped
+                    break
+                case 'paused':
+                    this.state = State.Paused
+                    break
+                case 'resume':
+                    this.state = State.Started
+                    break
+            }
+        }
     }
 
     get buffer() {
@@ -25,10 +60,10 @@ export class SBufferSourceNode extends AudioWorkletNode {
     /** @param {AudioBuffer} audioBuffer */
     set buffer(audioBuffer) {
         this._buffer = audioBuffer;
-        // Convert AudioBuffer to Float32Array and send it to the processor via the message port
-        // Note: This simplistic approach sends only the first channel of the buffer
-        const channelData = audioBuffer.getChannelData(0);
-        this.port.postMessage({ type: 'buffer', data: channelData });
+        const data = audioBuffer.numberOfChannels === 1
+            ? [audioBuffer.getChannelData(0)]
+            : [audioBuffer.getChannelData(0), audioBuffer.getChannelData(1)]
+        this.port.postMessage({ type: 'buffer', data });
     }
 
     /**
@@ -118,14 +153,13 @@ export class SBufferSourceNode extends AudioWorkletNode {
     /** @type {() => unknown} */
     set onended(callback) {
         this._onended = callback
-        this.port.onmessage({ type: 'ended' }, callback)
     }
 
     /** @returns {Promise<number>} */
     async getPlayhead() {
         return new Promise(resolve => {
-            this.port.addEventListener('playhead', event => {
-                resolve(event.data)
+            this.port.addEventListener('message', event => {
+                resolve(event.data.data)
             }, { once: true })
             this.port.postMessage({ type: 'playhead' })
         })

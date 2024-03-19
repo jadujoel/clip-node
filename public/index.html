@@ -6,12 +6,13 @@
 <button id="stop">Stop</button>
 <button id="pause">Pause</button>
 <button id="resume">Resume</button>
+<button id="playhead">playhead</button>
 </section>
 
+<code>Loop</code><input type="checkbox" id="loop">
 <section id="inputs">
-<span>Loop</span><input type="checkbox" id="loop">
-<span>LoopStart</span><input type="range" id="loopStart" value="0" step="0.001"><output id="loopStartValue">0</output>
-<span>LoopEnd</span><input type="range" id="loopEnd" value="0" step="0.001"><output id="loopEndValue">0</output>
-<span>PlaybackRate</span><input type="range" id="playbackRate" value="1" step="0.1" min="-3.4028234663852886e+38" max="3.4028234663852886e+38"><output id="playbackRateValue">1</output>
-<span>Detune</span><input type="range" id="detune" value="0" step="100" min="-9600" max ="9600"><output id="detuneValue">0</output>
+<code>LoopStart</code><input type="range" id="loopStart" value="0" step="0.001"><output id="loopStartValue">0</output>
+<code>LoopEnd</code><input type="range" id="loopEnd" value="0" step="0.001"><output id="loopEndValue">0</output>
+<code>PlaybackRate</code><input type="range" id="playbackRate" value="1" step="0.01" min="-4" max="4"><output id="playbackRateValue">1</output>
+<code>Detune</code><input type="range" id="detune" value="0" step="100" min="-9600" max ="9600"><output id="detuneValue">0</output>
 </section>
