@@ -1,76 +1,7 @@
 import { ClipNode } from './clip-node.js';
+import { AudioControl } from './audio-control.js';
 
 const elements = {
-  /** @type {HTMLButtonElement} */
-  start: document.getElementById("start"),
-  /** @type {HTMLButtonElement} */
-  stop: document.getElementById("stop"),
-  /** @type {HTMLButtonElement} */
-  pause: document.getElementById("pause"),
-  /** @type {HTMLButtonElement} */
-  resume: document.getElementById("resume"),
-  /** @type {HTMLInputElement} */
-  loop: document.getElementById("loop"),
-  /** @type {HTMLInputElement} */
-  loopStart: document.getElementById("loopStart"),
-  /** @type {HTMLOutputElement} */
-  loopStartValue: document.getElementById("loopStartValue"),
-  /** @type {HTMLInputElement} */
-  loopEnd: document.getElementById("loopEnd"),
-  /** @type {HTMLOutputElement} */
-  loopEndValue: document.getElementById("loopEndValue"),
-  /** @type {HTMLInputElement} */
-  playBackRate: document.getElementById("playbackRate"),
-  /** @type {HTMLOutputElement} */
-  playBackRateValue: document.getElementById("playbackRateValue"),
-  /** @type {HTMLInputElement} */
-  detune: document.getElementById("detune"),
-  /** @type {HTMLOutputElement} */
-  detuneValue: document.getElementById("detuneValue"),
-  /** @type {HTMLInputElement} */
-  offset: document.getElementById('offset'),
-  /** @type {HTMLOutputElement} */
-  offsetValue: document.getElementById('offsetValue'),
-  /** @type {HTMLInputElement} */
-  duration: document.getElementById('duration'),
-  /** @type {HTMLOutputElement} */
-  durationValue: document.getElementById('durationValue'),
-
-  /** @type {HTMLOutputElement} */
-  timesLooped: document.getElementById('timesLooped'),
-
-  /** @type {HTMLInputElement} */
-  playhead: document.getElementById('playhead'),
-  /** @type {HTMLOutputElement} */
-  playheadValue: document.getElementById('playheadValue'),
-
-  /** @type {HTMLInputElement} */
-  startDelay: document.getElementById('startDelay'),
-  /** @type {HTMLOutputElement} */
-  startDelayValue: document.getElementById('startDelayValue'),
-  /** @type {HTMLInputElement} */
-  stopDelay: document.getElementById('stopDelay'),
-  /** @type {HTMLOutputElement} */
-  stopDelayValue: document.getElementById('stopDelayValue'),
-
-  /** @type {HTMLInputElement} */
-  gain: document.getElementById('gain'),
-  /** @type {HTMLOutputElement} */
-  gainValue: document.getElementById('gainValue'),
-
-  /** @type {HTMLInputElement} */
-  pan: document.getElementById('pan'),
-  /** @type {HTMLOutputElement} */
-  panValue: document.getElementById('panValue'),
-
-  /** @type {HTMLInputElement} */
-  lowpass: document.getElementById('lowpass'),
-  /** @type {HTMLOutputElement} */
-  lowpassValue: document.getElementById('lowpassValue'),
-  /** @type {HTMLInputElement} */
-  highpass: document.getElementById('highpass'),
-  highpassValue: document.getElementById('highpassValue'),
-
   /** @type {HTMLOutputElement} */
   state: document.getElementById('state'),
   /** @type {HTMLOutputElement} */
@@ -79,6 +10,47 @@ const elements = {
   currentTime: document.getElementById('currentTime'),
   /** @type {HTMLOutputElement} */
   currentFrame: document.getElementById('currentFrame'),
+  /** @type {HTMLOutputElement} */
+  timesLooped: document.getElementById('timesLooped'),
+
+  /** @type {HTMLButtonElement} */
+  start: document.getElementById("start"),
+  /** @type {HTMLButtonElement} */
+  stop: document.getElementById("stop"),
+  /** @type {HTMLButtonElement} */
+  pause: document.getElementById("pause"),
+  /** @type {HTMLButtonElement} */
+  resume: document.getElementById("resume"),
+
+  /** @type {HTMLInputElement} */
+  loop: document.getElementById("loop"),
+
+  /** @type {AudioControl} */
+  loopStart: document.getElementById("loopstart-control"),
+  /** @type {AudioControl} */
+  loopEnd: document.getElementById("loopend-control"),
+  /** @type {AudioControl} */
+  playBackRate: document.getElementById("playbackrate-control"),
+  /** @type {AudioControl} */
+  detune: document.getElementById("detune-control"),
+  /** @type {AudioControl} */
+  offset: document.getElementById('offset-control'),
+  /** @type {AudioControl} */
+  duration: document.getElementById('duration-control'),
+  /** @type {AudioControl} */
+  playhead: document.getElementById('playhead-control'),
+  /** @type {AudioControl} */
+  startDelay: document.getElementById('startdelay-control'),
+  /** @type {AudioControl} */
+  stopDelay: document.getElementById('stopdelay-control'),
+  /** @type {AudioControl} */
+  gain: document.getElementById('gain-control'),
+  /** @type {AudioControl} */
+  pan: document.getElementById('pan-control'),
+  /** @type {AudioControl} */
+  lowpass: document.getElementById('lowpass-control'),
+  /** @type {AudioControl} */
+  highpass: document.getElementById('highpass-control'),
 }
 
 for (const [name, element] of Object.entries(elements)) {
@@ -102,24 +74,12 @@ async function start() {
 
   node.connect(context.destination)
 
-  elements.duration.value = -1
-  elements.offset.max = buffer.duration
-  elements.offset.value = 0
-  elements.loopEnd.max = buffer.duration
-  elements.loopEnd.value = buffer.duration
-  elements.loopStart.max = buffer.duration
-  elements.loopStart.value = 0
-  elements.loopEnd.max = buffer.duration
-  elements.highpass.value = node.highpass.value
-  elements.lowpass.value = node.lowpass.value
-  elements.gain.value = node.gain.value
-  elements.pan.value = node.pan.value = 0
-
   elements.start.onclick = () => node.start(
     context.currentTime + Number(elements.startDelay.value),
-    Number(elements.offset.value),
-    Number(elements.duration.value)
+    elements.offset.value,
+    elements.duration.value
   )
+
   elements.stop.onclick = () => node.stop(context.currentTime + Number(elements.stopDelay.value))
   elements.pause.onclick = () => node.pause(context.currentTime + Number(elements.stopDelay.value))
   elements.resume.onclick = () => node.resume(context.currentTime + Number(elements.startDelay.value))
@@ -127,92 +87,83 @@ async function start() {
     node.loop = Boolean(elements.loop.checked)
   })
   elements.loopStart.oninput = () => {
-    node.loopStart = Number(elements.loopStart.value)
-    elements.loopStartValue.value = node.loopStart.toPrecision(2)
+    node.loopStart = elements.loopStart.value
   }
   elements.loopEnd.oninput = () => {
-    node.loopEnd = Number(elements.loopEnd.value)
-    elements.loopEndValue.value = node.loopEnd.toPrecision(2)
+    node.loopEnd = elements.loopEnd.value
   }
   elements.playBackRate.oninput = () => {
-    node.playbackRate.value = Number(elements.playBackRate.value)
-    elements.playBackRateValue.value = node.playbackRate.value.toPrecision(2)
+    node.playbackRate.value = elements.playBackRate.value
   }
   elements.detune.oninput = () => {
-    node.detune.value = Number(elements.detune.value)
-    elements.detuneValue.value = node.detune.value
+    node.detune.value = elements.detune.value
   }
 
   elements.offset.oninput = () => {
-    node.offset = Number(elements.offset.value)
-    elements.offsetValue.value = node.offset
+    node.offset = elements.offset.value
   }
 
   elements.duration.oninput = () => {
-    node.duration = Number(elements.duration.value)
-    elements.durationValue.value = node.duration
+    node.duration = elements.duration.value
   }
 
   elements.lowpass.oninput = () => {
-    node.lowpass.value = Number(elements.lowpass.value)
-    elements.lowpassValue.value = node.lowpass.value
+    node.lowpass.value = elements.lowpass.value
   }
 
   elements.highpass.oninput = () => {
-    node.highpass.value = Number(elements.highpass.value)
-    elements.highpassValue.value = node.highpass.value
+    node.highpass.value = elements.highpass.value
   }
 
   elements.gain.oninput = () => {
-    node.gain.value = Number(elements.gain.value)
-    elements.gainValue.value = node.gain.value.toPrecision(2)
+    node.gain.value = elements.gain.value
   }
 
   elements.pan.oninput = () => {
-    node.pan.value = Number(elements.pan.value)
-    elements.panValue.value = node.pan.value.toPrecision(2)
-  }
-
-  node.buffer = buffer
-  node.loop = Boolean(elements.loop.checked)
-  node.offset = Number(elements.offset.value)
-  node.duration = Number(elements.duration.value)
-  node.loopStart = Number(elements.loopStart.value)
-  node.loopEnd = Number(elements.loopEnd.value)
-  node.playbackRate.value = Number(elements.playBackRate.value)
-  node.detune.value = Number(elements.detune.value)
-  node.onlooped = () => {
-    elements.timesLooped.value = Number(node.timesLooped)
-  }
-
-  elements.durationValue.value = elements.duration.value
-  elements.offsetValue.value = elements.offset.value
-  elements.loopEndValue.value = buffer.duration.toPrecision(2)
-  elements.loopEndValue.value = buffer.duration.toPrecision(2)
-  elements.playBackRateValue.value = node.playbackRate.value.toPrecision(2)
-  elements.detuneValue.value = node.detune.value.toPrecision(2)
-
-  elements.startDelay.oninput = () => {
-    elements.startDelayValue.value = elements.startDelay.value
-  }
-  elements.stopDelay.oninput = () => {
-    elements.stopDelayValue.value = elements.stopDelay.value
+    node.pan.value = elements.pan.value
   }
 
   elements.playhead.oninput = () => {
-    node.playhead = (Number(elements.playhead.value))
+    node.playhead = elements.playhead.value
   }
-  elements.playhead.min = 0
-  elements.playhead.max = node._buffer.length
+
+  node.onlooped = () => {
+    elements.timesLooped.value = node.timesLooped
+  }
 
   node.onframe = () => {
     elements.playhead.value = node.playhead
-    elements.playheadValue.value = node.playhead
     elements.fps.value = node.fps
     elements.state.value = node.state
     elements.currentTime.value = node.currentTime.toPrecision(4)
     elements.currentFrame.value = node.currentFrame
   }
+
+  elements.offset.max = buffer.duration
+  elements.loopEnd.max = buffer.duration
+  elements.loopStart.max = buffer.duration
+  elements.playhead.max = buffer.length
+
+  elements.loopEnd.value = buffer.duration
+
+  elements.duration.value = -1
+
+  elements.playBackRate.value = node.playbackRate.value
+  elements.detune.value = node.detune.value
+  elements.gain.value = node.gain.value
+  elements.pan.value = node.pan.value
+  elements.lowpass.value = node.lowpass.value
+  elements.highpass.value = node.highpass.value
+
+  node.buffer = buffer
+  node.loop = Boolean(elements.loop.checked)
+  node.offset = elements.offset.value
+  node.duration = elements.duration.value
+  node.loopStart = elements.loopStart.value
+  node.loopEnd = elements.loopEnd.value
+  node.playbackRate.value = elements.playBackRate.value
+  node.detune.value = elements.detune.value
+
 }
 
 /**

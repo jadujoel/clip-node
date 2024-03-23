@@ -60,7 +60,7 @@ class ClipProcessor extends AudioWorkletProcessor {
         }, {
             name: 'pan',
             rate: 'a-rate',
-            defaultValue: 1,
+            defaultValue: 0,
             minValue: -3.4028234663852886e+38,
             maxValue: 3.4028234663852886e+38
         }, {
@@ -328,10 +328,8 @@ class ClipProcessor extends AudioWorkletProcessor {
             highpassFilter(signal, highpass, channel)
             gainFilter(signal, gains, channel)
         }
-        if (nc === 1) {
-            panMonoFilter(channels[0], pans)
-        } else {
-            panStereoFilter(channels[0], channels[1], pans)
+        if (nc === 2) {
+            panStereoFilterLinear(channels[0], channels[1], pans)
         }
         return ondone()
     }
@@ -385,12 +383,14 @@ function gainFilter(arr, gains) {
     let previousGain = gains[0];
     if (gains.length === 1) {
         const gain = gains[0];
+        if (gain === 1) return;
         for (let i = 0; i < arr.length; i++) {
             arr[i] *= gain;
         }
     } else {
         for (let i = 0; i < arr.length; i++) {
             const gain = previousGain = gains[i] ?? previousGain;
+            if (gain === 1) continue;
             arr[i] *= gain
         }
     }
@@ -409,6 +409,7 @@ function lowpassFilter(arr, cutoffs, channel) {
     let { x_1, x_2, y_1, y_2 } = lowpassStates[channel] ?? { x_1: 0, x_2: 0, y_1: 0, y_2: 0 }
     if (cutoffs.length === 1) {
         const cutoff = cutoffs[0];
+        if (cutoff >= 20000) return;
         // Constants for a simple lowpass filter (not specifically Butterworth)
         const w0 = 2 * Math.PI * cutoff / sampleRate;
         const alpha = Math.sin(w0) / 2;
@@ -479,6 +480,7 @@ function highpassFilter(arr, cutoffs, channel) {
     let { x_1, x_2, y_1, y_2 } = highpassStates[channel] ?? { x_1: 0, x_2: 0, y_1: 0, y_2: 0 }
     if (cutoffs.length === 1) {
         const cutoff = cutoffs[0];
+        if (cutoff <= 20) return;
         // Constants for a simple highpass filter (not specifically Butterworth)
         const w0 = 2 * Math.PI * cutoff / sampleRate;
         const alpha = Math.sin(w0) / 2;
@@ -537,56 +539,17 @@ function highpassFilter(arr, cutoffs, channel) {
 }
 
 /**
- * Applies stereo panning to a mono audio signal.
- * @param {Float32Array} arr The mono audio signal.
- * @param {number[]} pan The pan value ranging from -1 (full left) to 1 (full right).
- */
-function panMonoFilter(arr, pans) {
-    if (pans.length === 1) {
-        // Calculate gain for left and right channels
-        const leftGain = pan <= 0 ? 1 : Math.cos(pan * 0.5 * Math.PI);
-        const rightGain = pan >= 0 ? 1 : Math.cos((1 - pan) * 0.5 * Math.PI);
-
-        // Apply panning gains to the mono signal to create a stereo effect
-        for (let i = 0; i < arr.length; i++) {
-            arr[i] *= leftGain;
-            arr[i] *= rightGain;
-        }
-    } else {
-        let prevPan = pans[0];
-        for (let i = 0; i < arr.length; i++) {
-            const pan = pans[i] ?? prevPan
-            // Calculate gain for left and right channels based on pan value
-            const leftGain = pan <= 0 ? 1 : Math.cos(pan * 0.5 * Math.PI);
-            const rightGain = pan >= 0 ? 1 : Math.cos((1 - pan) * 0.5 * Math.PI);
-
-            // Apply panning gains to each channel
-            arr[i] *= leftGain;
-            arr[i] *= rightGain;
-        }
-    }
-}
-
-
-/**
  * Applies stereo panning to a stereo audio signal.
  * @param {Float32Array} l The left channel of the stereo audio signal.
  * @param {Float32Array} r The right channel of the stereo audio signal.
  * @param {number[]} pan The pan value ranging from -1 (full left) to 1 (full right).
- * @returns {{left: Float32Array, right: Float32Array}} An object with adjusted left and right Float32Arrays after panning.
  */
-function panStereoFilter(l, r, pans) {
-    function calculateGains(pan) {
-        const leftGain = pan <= 0 ? 1 : Math.sqrt(1 - pan);
-        const rightGain = pan >= 0 ? 1 : Math.sqrt(1 + pan);
-        return { leftGain, rightGain };
-    }
-
+function panStereoFilterSmooth(l, r, pans) {
     if (pans.length === 1) {
         const pan = pans[0];
-        // Calculate gain for left and right channels based on pan value
-        const { leftGain, rightGain } = calculateGains(pan);
-
+        if (pan === 0) return;
+        const leftGain = pan <= 0 ? 1 : Math.sqrt(1 - pan);
+        const rightGain = pan >= 0 ? 1 : Math.sqrt(1 + pan);
         // Apply panning gains to each channel
         for (let i = 0; i < l.length; i++) {
             l[i] *= leftGain;
@@ -597,8 +560,8 @@ function panStereoFilter(l, r, pans) {
         for (let i = 0; i < l.length; i++) {
             const pan = pans[i] ?? prevPan;
             // Calculate gain for left and right channels based on pan value
-            const { leftGain, rightGain } = calculateGains(pan);
-
+            const leftGain = pan <= 0 ? 1 : Math.sqrt(1 - pan);
+            const rightGain = pan >= 0 ? 1 : Math.sqrt(1 + pan);
             // Apply panning gains to each channel
             l[i] *= leftGain;
             r[i] *= rightGain;
@@ -606,6 +569,30 @@ function panStereoFilter(l, r, pans) {
     }
 }
 
+function panStereoFilterLinear(l, r, pans) {
+    if (pans.length === 1) {
+        const pan = pans[0];
+        // Linear gain calculation
+        const leftGain = pan <= 0 ? 1 : 1 - pan;
+        const rightGain = pan >= 0 ? 1 : 1 + pan;
+        // Apply panning gains to each channel
+        for (let i = 0; i < l.length; i++) {
+            l[i] *= leftGain;
+            r[i] *= rightGain;
+        }
+    } else {
+        let prevPan = pans[0];
+        for (let i = 0; i < l.length; i++) {
+            const pan = pans[i] ?? prevPan;
+            // Linear gain calculation
+            const leftGain = pan <= 0 ? 1 : 1 - pan;
+            const rightGain = pan >= 0 ? 1 : 1 + pan;
+            // Apply panning gains to each channel
+            l[i] *= leftGain;
+            r[i] *= rightGain;
+        }
+    }
+}
 
 
 registerProcessor('clip-processor', ClipProcessor);
