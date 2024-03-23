@@ -1,0 +1,9 @@
+{
+  "extends": [
+    "plugin:webperf/recommended",
+    "plugin:oxlint/recommended"
+  ],
+  "parserOptions": {
+    "ecmaVersion": 2022
+  }
+}

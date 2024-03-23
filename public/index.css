@@ -24,6 +24,7 @@ button {
 
 input {
   height: 80px;
-  width: 200px;
+  max-width: 600px;
+  min-width: 200px;
   font-size: larger;
 }

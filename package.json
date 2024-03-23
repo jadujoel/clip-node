@@ -1,5 +1,5 @@
 {
-  "name": "saudio-buffer-source-node",
+  "name": "clip-node",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -10,6 +10,10 @@
   "author": "jlof@evolution.com",
   "license": "MIT",
   "devDependencies": {
-    "bun-types": "1.0.33"
+    "bun-types": "1.0.35",
+    "eslint": "8.57.0",
+    "eslint-plugin-oxlint": "0.2.7",
+    "eslint-plugin-webperf": "0.0.3",
+    "oxlint": "0.2.14"
   }
 }
