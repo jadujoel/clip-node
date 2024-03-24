@@ -84,7 +84,6 @@ class ClipProcessor extends AudioWorkletProcessor {
 
     constructor(options) {
         super(options);
-        this.fps = currentTime
 
         console.log('this', this, globalThis)
 
@@ -122,11 +121,11 @@ class ClipProcessor extends AudioWorkletProcessor {
         /** @type {number} */
         this.durationSamples
 
-        this.fadeIn = 0.001
-        this.fadeInSamples = 0.001 * sampleRate
+        this.fadeIn = 0
+        this.fadeInSamples = 0
 
-        this.fadeOut = 0.001
-        this.fadeOutSamples = 0.001 * sampleRate
+        this.fadeOut = 0
+        this.fadeOutSamples = 0
 
 
         /** @type {number | undefined} */
@@ -240,12 +239,6 @@ class ClipProcessor extends AudioWorkletProcessor {
                 break
             }
         };
-
-        // this.filterState = Array.from({ length: 2 }, () => ({ lp_y1: 0, lp_y2: 0, hp_y1: 0, hp_y2: 0 }));
-        this.filterStates = [
-            { x_1: 0, x_2: 0, y_1: 0, y_2: 0 },
-            { x_1: 0, x_2: 0, y_1: 0, y_2: 0 }
-        ];
     }
 
     /**
@@ -254,12 +247,8 @@ class ClipProcessor extends AudioWorkletProcessor {
      * @param {Record<string, Float32Array>} parameters
      */
     process(_inputs, outputs, parameters) {
-        const start = currentTime
         const ondone = () => {
-            this.fps = 1 / Math.max(currentTime - start, 0.0000001)
-            const timeTaken = currentTime - start
-            const load = timeTaken / secondsAvailablePerBlock
-            this.port.postMessage({ type: 'frame', data: [currentTime, currentFrame, Math.floor(this.playhead), load] })
+            this.port.postMessage({ type: 'frame', data: [currentTime, currentFrame, Math.floor(this.playhead), 0] })
             return true
         }
         if (this.signal === undefined) {
@@ -267,28 +256,31 @@ class ClipProcessor extends AudioWorkletProcessor {
         }
         if (this.state === State.Initial) {
             return ondone()
-        } else if (this.state === State.Scheduled && currentTime >= this.startWhen) {
-            this.state = State.Started
-            this.port.postMessage({ type: "started" })
-        } else if (this.state === State.Ended) {
+        }
+        if (this.state === State.Ended) {
             this.fillWithSilence(outputs[0])
-            return ondone();
-        } else if (this.state === State.Paused && currentTime > this.pauseWhen) {
-            this.fillWithSilence(outputs[0])
-            return ondone();
-        } else if (currentTime > this.stopWhen) {
+            return ondone()
+        }
+        if (this.state === State.Scheduled) {
+            if (currentTime >= this.startWhen) {
+                this.state = State.Started
+                this.port.postMessage({ type: "started" })
+            }
+        } else if (this.state === State.Paused) {
+            if (currentTime > this.pauseWhen) {
+                this.fillWithSilence(outputs[0])
+                return ondone()
+            }
+        }
+        // otherwise we are in started or stopped state
+        if (currentTime > this.stopWhen) {
             this.fillWithSilence(outputs[0])
             this.state = State.Ended
             this.port.postMessage({ type: "ended" })
             this.playedSamples = 0
             return ondone()
         }
-        if (this.state !== State.Started && this.state !== State.Stopped) {
-            this.fillWithSilence(outputs[0])
-            return ondone()
-        }
 
-        const channels = outputs[0];
         const {
             playbackRate: playbackRates,
             detune: detunes,
@@ -296,16 +288,18 @@ class ClipProcessor extends AudioWorkletProcessor {
             gain: gains,
             pan: pans
         } = parameters;
-        const sourceLength = this.signal[0].length;
-        const nc = Math.min(this.signal.length, channels.length)
-        const nsamples = channels[0]?.length
 
-        for (let i = 0; i < nsamples; ++i) {
-            this.playedSamples += 1;
+        const outch = outputs[0];
+        const sourceLength = this.signal[0].length;
+        const nc = Math.min(this.signal.length, outch.length)
+        const ns = Math.min(this.signal[0]?.length, outch[0]?.length)
+
+        let ended = false
+
+        for (let i = 0; i < ns; ++i) {
             if (this.playedSamples > this.durationSamples) {
-                this.state = State.Ended
-                this.port.postMessage({ type: 'ended' });
-                return ondone()
+                ended = true
+                break
             }
             // Calculate the final playback rate for each sample
             const playbackRate = playbackRates.length > 1 ? playbackRates[i] : playbackRates[0];
@@ -330,10 +324,8 @@ class ClipProcessor extends AudioWorkletProcessor {
 
             // Handle stopping at the buffer's ends
             if ((rate > 0 && this.playhead >= sourceLength) || (rate < 0 && this.playhead < 0)) {
-                this.port.postMessage({ type: 'ended' });
-                this.state = State.Ended;
-                this.stopWhen > currentTime
-                return ondone()
+                ended = true
+                break
             }
 
             const index = Math.floor(this.playhead)
@@ -342,76 +334,81 @@ class ClipProcessor extends AudioWorkletProcessor {
             // No interpolation needed at lower speeds
             if (rate >= -1 || rate <=1) {
                 for (let ch = 0; ch < nc; ++ch) {
-                    const out = channels[ch];
-                    out[i] = this.signal[ch][index]
+                    outch[ch][i] = this.signal[ch][index]
                 }
             } else {
                 // Linear interpolation for sample output
                 const nextIndex = rate > 0 ? Math.min(index + 1, sourceLength - 1) : Math.max(index - 1, 0);
                 const frac = this.playhead - index;
                 for (let ch = 0; ch < nc; ++ch) {
-                    const out = channels[ch]
+                    const out = outch[ch]
                     out[i] = (1 - frac) * out[index] + frac * out[nextIndex];
                 }
             }
+            this.playedSamples += 1;
         }
+
+        const shouldFadeIn = this.fadeIn > 0 && this.playedSamples < this.fadeInSamples;
+        if (shouldFadeIn) {
+            const remaining = this.fadeInSamples - this.playedSamples
+            const thisblock = Math.min(ns, remaining)
+            for (let i = 0; i < thisblock; ++i) {
+                const frac = 1 - ((remaining - i) / this.fadeInSamples)
+                for (let ch = 0; ch < nc; ++ch) {
+                    outch[ch][i] *= frac
+                }
+            }
+        }
+
+        if (this.fadeOut > 0) {
+            // fadeout
+            if (this.state === State.Stopped) {
+                // const remaining = this.durationSamples - this.playedSamples - 1
+                const remaining = Math.floor((this.stopWhen - currentTime) * sampleRate)
+                const fadeSamples = Math.min(ns, remaining)
+                for (let i = 0; i < fadeSamples; ++i) {
+                    const frac = (remaining - i) / this.fadeOutSamples
+                    for (let ch = 0; ch < nc; ++ch) {
+                        outch[ch][i] *= frac
+                    }
+                }
+                for (let i = fadeSamples; i < ns; ++i) {
+                    for (let ch = 0; ch < nc; ++ch) {
+                        outch[ch][i] = 0
+                    }
+                }
+            } else if (this.playedSamples > (this.durationSamples - this.fadeOutSamples)) {
+                const remaining = this.durationSamples - this.playedSamples
+                const fadeSamples = Math.min(ns, remaining)
+                for (let i = 0; i < fadeSamples; ++i) {
+                    const frac = (remaining - i) / this.fadeOutSamples
+                    for (let ch = 0; ch < nc; ++ch) {
+                        outch[ch][i] *= frac
+                    }
+                }
+                // fill the rest with silence
+                for (let i = fadeSamples; i < ns; ++i) {
+                    for (let ch = 0; ch < nc; ++ch) {
+                        outch[ch][i] = 0
+                    }
+                }
+            }
+        }
+
         for (let channel = 0; channel < nc; ++channel) {
-            const signal = channels[channel];
+            const signal = outch[channel];
             lowpassFilter(signal, lowpass, channel)
             highpassFilter(signal, highpass, channel)
             gainFilter(signal, gains, channel)
         }
         if (nc === 2) {
-            panStereoFilterLinear(channels[0], channels[1], pans)
+            panStereoFilterLinear(outch[0], outch[1], pans)
         }
 
-        // fadein
-        if (this.playedSamples < this.fadeInSamples) {
-            const remaining = this.fadeInSamples - this.playedSamples
-            const thisblock = Math.min(nsamples, remaining)
-            // console.log('fadein', thisblock, remaining, this.playedSamples, this.fadeInSamples)
-            for (let i = 0; i < thisblock; ++i) {
-                const frac = 1 - ((remaining - i) / this.fadeInSamples)
-                // console.log('fadein', frac)
-                for (let ch = 0; ch < nc; ++ch) {
-                    channels[ch][i] *= frac
-                }
-            }
+        if (ended) {
+            this.state = State.Ended
+            this.port.postMessage({ type: "ended" })
         }
-        // fadeout
-        if (this.state === State.Stopped) {
-            // const remaining = this.durationSamples - this.playedSamples - 1
-            const remaining = Math.floor((this.stopWhen - currentTime) * sampleRate)
-            const fadeSamples = Math.min(nsamples, remaining)
-            // console.log('fadeout', thisblock, remaining, this.playedSamples, this.durationSamples)
-            for (let i = 0; i < fadeSamples; ++i) {
-                const frac = (remaining - i) / this.fadeOutSamples
-                // console.log('fadeout', frac)
-                for (let ch = 0; ch < nc; ++ch) {
-                    channels[ch][i] *= frac
-                }
-            }
-            for (let i = fadeSamples; i < nsamples; ++i) {
-                for (let ch = 0; ch < nc; ++ch) {
-                    channels[ch][i] = 0
-                }
-            }
-        } else if (this.playedSamples > (this.durationSamples - this.fadeOutSamples)) {
-            const remaining = this.durationSamples - this.playedSamples
-            const fadeSamples = Math.min(nsamples, remaining)
-            for (let i = 0; i < fadeSamples; ++i) {
-                const frac = (remaining - i) / this.fadeOutSamples
-                for (let ch = 0; ch < nc; ++ch) {
-                    channels[ch][i] *= frac
-                }
-            }
-            for (let i = fadeSamples; i < nsamples; ++i) {
-                for (let ch = 0; ch < nc; ++ch) {
-                    channels[ch][i] = 0
-                }
-            }
-        }
-
         return ondone()
     }
 
@@ -425,6 +422,7 @@ class ClipProcessor extends AudioWorkletProcessor {
         }
     }
 }
+
 
 /**
  * @param {number} y0
@@ -456,26 +454,28 @@ function cubicInterpolate(y0, y1, y2, y3, mu) {
 
 
 /**
- * @param {Float32Array} arr
+ * @param {Float32Array[]} arr
  * @param {number[]} gains
  * @param {number} channel
  */
 function gainFilter(arr, gains) {
-    let previousGain = gains[0];
     if (gains.length === 1) {
         const gain = gains[0];
         if (gain === 1) return;
-        for (let i = 0; i < arr.length; i++) {
-            arr[i] *= gain;
+        for (let ch of arr) {
+            for (let i = 0; i < arr.length; i++) {
+                ch[i] *= gain;
+            }
         }
-    } else {
+        return
+    }
+    for (let ch of arr) {
         for (let i = 0; i < arr.length; i++) {
-            const gain = previousGain = gains[i] ?? previousGain;
+            const gain = gains[i] ?? 1
             if (gain === 1) continue;
-            arr[i] *= gain
+            ch[i] *= gain
         }
     }
-    return arr
 }
 
 // Pre-filtering state
