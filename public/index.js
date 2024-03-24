@@ -1,11 +1,11 @@
-import { ClipNode } from './clip-node.js';
 import { AudioControl } from './audio-control.js';
+import { ClipNode } from './clip-node.js';
 
 const elements = {
   /** @type {HTMLOutputElement} */
   state: document.getElementById('state'),
   /** @type {HTMLOutputElement} */
-  fps: document.getElementById('fps'),
+  load: document.getElementById('load'),
   /** @type {HTMLOutputElement} */
   currentTime: document.getElementById('currentTime'),
   /** @type {HTMLOutputElement} */
@@ -51,6 +51,10 @@ const elements = {
   lowpass: document.getElementById('lowpass-control'),
   /** @type {AudioControl} */
   highpass: document.getElementById('highpass-control'),
+  /** @type {AudioControl} */
+  fadeIn: document.getElementById('fadein-control'),
+  /** @type {AudioControl} */
+  fadeOut: document.getElementById('fadeout-control'),
 }
 
 for (const [name, element] of Object.entries(elements)) {
@@ -127,13 +131,21 @@ async function start() {
     node.playhead = elements.playhead.value
   }
 
+  elements.fadeIn.oninput = () => {
+    node.fadeIn = elements.fadeIn.value
+  }
+
+  elements.fadeOut.oninput = () => {
+    node.fadeOut = elements.fadeOut.value
+  }
+
   node.onlooped = () => {
     elements.timesLooped.value = node.timesLooped
   }
 
   node.onframe = () => {
     elements.playhead.value = node.playhead
-    elements.fps.value = node.fps
+    elements.load.value = node.load
     elements.state.value = node.state
     elements.currentTime.value = node.currentTime.toPrecision(4)
     elements.currentFrame.value = node.currentFrame
@@ -144,6 +156,8 @@ async function start() {
   elements.loopStart.max = buffer.duration
   elements.playhead.max = buffer.length
 
+  elements.fadeIn.max = buffer.duration
+  elements.fadeOut.max = buffer.duration
   elements.loopEnd.value = buffer.duration
 
   elements.duration.value = -1

@@ -52,10 +52,12 @@ export class ClipNode extends AudioWorkletNode {
         this._offset = 0
         this._duration
         this._playhead = 0
+        this._fadeIn = 0.001
+        this._fadeOut = 0.001
         this.timesLooped = 0
         this.state = 'initial'
         this.previousState = 'initial'
-        this.fps = 0
+        this.load = 0
         /** @type {number} */
         this.currentTime
         /** @type {number} */
@@ -70,9 +72,10 @@ export class ClipNode extends AudioWorkletNode {
             }
             switch (type) {
                 case 'frame':
-                    const [currentTime, currentFrame, playhead, fps] = data
+                    /** @type [number, number, number, number] */
+                    const [currentTime, currentFrame, playhead, load] = data
                     this._playhead = playhead
-                    this.fps = fps
+                    this.load = load
                     this.currentFrame = currentFrame
                     this.currentTime = currentTime
                     if (this._onframe !== undefined) {
@@ -177,8 +180,8 @@ export class ClipNode extends AudioWorkletNode {
     }
 
     /** @param {number} when  */
-    stop(when = this.context.currentTime) {
-        this.port.postMessage({ type: 'stop', data: when });
+    stop(when = this.context.currentTime, initialDelay = 0, fadeOut = this._fadeOut) {
+        this.port.postMessage({ type: 'stop', data: when + initialDelay + fadeOut + 0.2 });
     }
 
     /** @param {number} when  */
@@ -337,5 +340,25 @@ export class ClipNode extends AudioWorkletNode {
     /** @type {AudioParam} */
     get pan() {
         return this.parameters.get('pan')
+    }
+
+    get fadeIn() {
+        return this._fadeIn
+    }
+
+    /** @param {number} value */
+    set fadeIn(value) {
+        this._fadeIn = value
+        this.port.postMessage({ type: 'fadeIn', data: value })
+    }
+
+    get fadeOut() {
+        return this._fadeOut
+    }
+
+    /** @param {number} value */
+    set fadeOut(value) {
+        this._fadeOut = value
+        this.port.postMessage({ type: 'fadeOut', data: value })
     }
 }
