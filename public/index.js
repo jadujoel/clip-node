@@ -61,6 +61,15 @@ const context = new AudioContext({ sampleRate});
 const addModulePromise = context.audioWorklet.addModule('clip-processor.js');
 const bufferPromise = decode('lml.webm', context)
 
+function startContext() {
+  if (context.state === 'suspended') {
+    context.resume()
+    console.log('resumed context')
+  }
+}
+
+document.addEventListener('click', startContext, { once: true })
+
 start()
 async function start() {
   await context.resume()
