@@ -1,14 +1,18 @@
 {
   "name": "clip-node",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "jlof@evolution.com",
+  "version": "0.0.1",
+  "main": "public/index.js",
+  "author": "joel.lof@icloud.com",
   "license": "MIT",
+  "files": [
+    "public",
+    "AudioWorklet.d.ts",
+    "ClipProcessor.d.ts",
+    ".eslintrc",
+    ".eslintignore",
+    "jsconfig.json",
+    "serve.ts"
+  ],
   "devDependencies": {
     "bun-types": "1.0.35",
     "eslint": "8.57.0",
