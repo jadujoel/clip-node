@@ -54,7 +54,9 @@ for (const [name, element] of Object.entries(elements)) {
 }
 
 // window.addEventListener('click', start, { once: true })
-loadState()
+if (!searchParamsIncludes('disable-state')) {
+  loadState()
+}
 
 const sampleRate = 48000
 const context = new AudioContext({ sampleRate});
@@ -188,10 +190,6 @@ async function start() {
   node.highpass.value = params.highpass.value
   node.gain.value = params.gain.value
   node.pan.value = params.pan.value
-
-  console.log(node)
-  console.log(node.lowpass.value, params.lowpass.value)
-
   infos.state.value = "initial"
 
   for (const [name, value] of Object.entries(infos)) {
@@ -200,22 +198,16 @@ async function start() {
       console.log('context menu', name, value)
     })
   }
-
-
-  console.log('lowpass', node.lowpass.value, params.lowpass.value)
   loadState()
 
 }
 
-window.addEventListener('beforeunload', () => {
-  // prevent unload
-  // ev.preventDefault();
-  // ev.returnValue = '';
-  saveState()
-})
-window.addEventListener('contextmenu', () => {
-  console.log('context menu')
-})
+if (!searchParamsIncludes('disable-state')) {
+  window.addEventListener('beforeunload', () => {
+    saveState()
+  })
+}
+
 function saveState() {
   /** @type {Record<string, { value: number, snap: string, tempo: number, min: number, max: number, unit: 'string'}>} */
   let state = {}
@@ -357,4 +349,12 @@ function getAudioControlElement(id) {
     return el
   }
   throw new Error(`Element ${id} is not an audio control element`)
+}
+
+/**
+ * @param {string} key
+ * @returns {boolean}
+ */
+function searchParamsIncludes(key) {
+  return new URLSearchParams(window.location.search).has(key)
 }

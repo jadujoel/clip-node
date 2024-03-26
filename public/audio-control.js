@@ -4,6 +4,7 @@ const create = document.createElement.bind(document)
 export class AudioControl extends HTMLElement {
   constructor() {
     super(); // Always call super first in constructor
+    const initialValue = this.getAttribute('value') ?? '0'
     this.attachShadow({ mode: 'open' }); // Attach a shadow DOM tree to the custom element
     this.elements = {
       label: create('label'),
@@ -142,15 +143,17 @@ export class AudioControl extends HTMLElement {
     label.setAttribute('part', 'label');
 
     input.type = 'range'
-    input.value = this.value.toString()
+    input.value = initialValue
     input.step = this.step
     input.min = this.min.toString()
     input.max = this.max.toString()
     input.setAttribute('part', 'input');
 
-    output.value = this.value.toString()
-    output.textContent = this.value.toString()
+    output.value = initialValue
+    output.textContent = initialValue
     output.setAttribute('part', 'output');
+
+    this.setValue(Number(initialValue))
 
     /**
      * @param {Event} e
@@ -164,15 +167,21 @@ export class AudioControl extends HTMLElement {
 
     // @ts-ignore
     this.shadowRoot.append(...Object.values(this.elements))
+
   }
 
-  // /** @param value {number} */
+  /** @param {number} newValue */
   set value(newValue) {
+    this.setValue(newValue)
+  }
+
+  /** @param {number} newValue */
+  setValue(newValue) {
     const value = getSnappedValue(Number(newValue), this.snap, this.tempo)
     const index = getClosestSnapIndex(value, this.snap, this.tempo)
     let precise = this.snap === 'none' ? value : index
     this.elements.input.value = value.toString()
-    const out = getUnitValue(Number(newValue), this.unit).toPrecision(this.precision)
+    const out = getUnitValue(Number(value), this.unit).toPrecision(this.precision)
     this.elements.output.value = out
     this.setAttribute('value', value.toString())
   }
@@ -200,7 +209,7 @@ export class AudioControl extends HTMLElement {
   }
 
   get value() {
-    return Number(this.getAttribute('value'))
+    return Number(this.getAttribute('value') ?? 0)
   }
 
   get min() {
