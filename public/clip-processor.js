@@ -182,7 +182,6 @@ class ClipProcessor extends AudioWorkletProcessor {
                         this.durationSamples = Number.MAX_SAFE_INTEGER
                     }
                 }
-                this.updateCrossfade()
             break;
             case 'loopStart':
                 this.loopStart = clamper(this.signal[0], data * sampleRate);

@@ -64,15 +64,9 @@ const bufferPromise = decode('lml.webm')
 
 elements.start.addEventListener('click', start, { once: true })
 
-/** @type {AudioContext} */
-let context
-
 async function start() {
-  if (context === undefined) {
-    context = new AudioContext({ sampleRate })
-    await context.audioWorklet.addModule('./clip-processor.js')
-    return
-  }
+  const context = new AudioContext({ sampleRate })
+  await context.audioWorklet.addModule('./clip-processor.js')
   const buffer = await bufferPromise
   const node = new ClipNode(context, { processorOptions: { buffer: float32ArrayFromAudioBuffer(buffer) } });
   node.connect(context.destination)
