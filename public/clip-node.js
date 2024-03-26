@@ -14,7 +14,8 @@ export class ClipNode extends AudioWorkletNode {
         numberOfOutputs,
         parameterData
     } = {}) {
-        super(context, 'clip-processor', {
+        console.log('hello from clipnode')
+        super(context, 'ClipProcessor', {
             numberOfInputs,
             outputChannelCount,
             processorOptions,
@@ -24,6 +25,7 @@ export class ClipNode extends AudioWorkletNode {
             numberOfOutputs,
             parameterData,
         });
+        console.log('super from clipnode', this)
         /** @type {TypedAudioParamMap<'playbackRate' | 'detune' | 'highpass' | 'lowpass' | 'gain'  | 'pan'>} */
         // @ts-ignore
         this.parameters
@@ -42,8 +44,11 @@ export class ClipNode extends AudioWorkletNode {
         this.onlooped = undefined
         /** @type {(() => void) | undefined} */
         this.onstopped = undefined
-        /** @type {(() => void) | undefined} */
+        /** @type {((data: readonly [currentTime: number, currentFrame: number, playhead: number, timeTaken: number]) => void) | undefined} */
         this.onframe = undefined
+        /** @type {(() => void) | undefined} */
+        this.ondisposed = undefined
+
         /** @type {((state: string) => void) | undefined} */
         this.onstatechange = undefined
         /** @type {AudioBuffer | undefined} */
@@ -80,93 +85,100 @@ export class ClipNode extends AudioWorkletNode {
         this.currentTime
         /** @type {number} */
         this.currentFrame
-        this.port.onmessage = message => {
-            if (message.type !== "message") {
-                return
-            }
-            const { type, data } = message.data
-            if (type !== 'playhead' && type !== "frame") {
-                console.log('node', type)
-            }
-            switch (type) {
-                case 'frame':
-                    /** @type [number, number, number, number] */
-                    const [currentTime, currentFrame, playhead, load] = data
-                    this._playhead = playhead
-                    this.cpu = load
-                    this.currentFrame = currentFrame
-                    this.currentTime = currentTime
-                    if (this.onframe !== undefined) {
-                        this.onframe()
-                    }
-                    break
-                case 'scheduled':
-                    this.state = "scheduled"
-                    if (this.onscheduled !== undefined) {
-                        this.onscheduled()
-                    }
-                    if (this.state !== this.previousState && this.onstatechange !== undefined) {
-                        this.onstatechange(this.state)
-                    }
-                    break
-                case 'started':
-                    this.state = "started"
-                    if (this.state !== this.previousState && this.onstatechange !== undefined) {
-                        this.onstatechange(this.state)
-                    }
-                    if (this.onstarted !== undefined) {
-                        this.onstarted()
-                    }
-                    break
-                case 'stopped':
-                    this.state = "stopped"
-                    if (this.onstopped !== undefined) {
-                        this.onstopped()
-                    }
-                    if (this.state !== this.previousState && this.onstatechange !== undefined) {
-                        this.onstatechange(this.state)
-                    }
-                    break
-                case 'paused':
-                    this.state = "paused"
-                    if (this.onpaused !== undefined) {
-                        this.onpaused()
-                    }
-                    if (this.state !== this.previousState && this.onstatechange !== undefined) {
-                        this.onstatechange(this.state)
-                    }
-                    break
-                case 'resume':
-                    this.state = "resumed"
-                    if (this.onresumed !== undefined) {
-                        this.onresumed()
-                    }
-                    if (this.state !== this.previousState && this.onstatechange !== undefined) {
-                        this.onstatechange(this.state)
-                    }
-                    break
-                case 'ended':
-                    this.state = "ended"
-                    if (this.onended !== undefined) {
-                        this.onended()
-                    }
-                    if (this.state !== this.previousState && this.onstatechange !== undefined) {
-                        this.onstatechange(this.state)
-                    }
-                    break
-                case 'looped':
-                    this.timesLooped++
-                    if (this.onlooped !== undefined) {
-                        this.onlooped()
-                    }
-                    break
-                case 'disposed':
-                    this.state = "disposed"
-                    if (this.state !== this.previousState && this.onstatechange !== undefined) {
-                        this.onstatechange(this.state)
-                    }
-                    break
-            }
+        this.port.onmessage = this.onmessage
+
+        console.log('clip node initialized', this)
+    }
+
+    /**
+     * @param {MessageEvent} message
+     */
+    onmessage = message => {
+        if (message.type !== "message") {
+            return
+        }
+        const { type, data } = message.data
+        if (type !== 'playhead' && type !== "frame") {
+            console.log('node', type)
+        }
+        switch (type) {
+            case 'frame':
+                /** @type [number, number, number, number] */
+                const [currentTime, currentFrame, playhead, timeTaken] = data
+                this._playhead = playhead
+                this.cpu = timeTaken
+                this.currentFrame = currentFrame
+                this.currentTime = currentTime
+                if (this.onframe !== undefined) {
+                    this.onframe(data)
+                }
+                break
+            case 'scheduled':
+                this.state = "scheduled"
+                if (this.onscheduled !== undefined) {
+                    this.onscheduled()
+                }
+                if (this.state !== this.previousState && this.onstatechange !== undefined) {
+                    this.onstatechange(this.state)
+                }
+                break
+            case 'started':
+                this.state = "started"
+                if (this.state !== this.previousState && this.onstatechange !== undefined) {
+                    this.onstatechange(this.state)
+                }
+                if (this.onstarted !== undefined) {
+                    this.onstarted()
+                }
+                break
+            case 'stopped':
+                this.state = "stopped"
+                if (this.onstopped !== undefined) {
+                    this.onstopped()
+                }
+                if (this.state !== this.previousState && this.onstatechange !== undefined) {
+                    this.onstatechange(this.state)
+                }
+                break
+            case 'paused':
+                this.state = "paused"
+                if (this.onpaused !== undefined) {
+                    this.onpaused()
+                }
+                if (this.state !== this.previousState && this.onstatechange !== undefined) {
+                    this.onstatechange(this.state)
+                }
+                break
+            case 'resume':
+                this.state = "resumed"
+                if (this.onresumed !== undefined) {
+                    this.onresumed()
+                }
+                if (this.state !== this.previousState && this.onstatechange !== undefined) {
+                    this.onstatechange(this.state)
+                }
+                break
+            case 'ended':
+                this.state = "ended"
+                if (this.onended !== undefined) {
+                    this.onended()
+                }
+                if (this.state !== this.previousState && this.onstatechange !== undefined) {
+                    this.onstatechange(this.state)
+                }
+                break
+            case 'looped':
+                this.timesLooped++
+                if (this.onlooped !== undefined) {
+                    this.onlooped()
+                }
+                break
+            case 'disposed':
+                this.state = "disposed"
+                if (this.state !== this.previousState && this.onstatechange !== undefined) {
+                    this.onstatechange(this.state)
+                }
+                break
         }
     }
 
@@ -287,7 +299,6 @@ export class ClipNode extends AudioWorkletNode {
     set duration(value) {
         if (value !== this._duration) {
             this._duration = value
-            this.port.postMessage({ type: 'duration', data: value })
         }
     }
 
@@ -295,22 +306,14 @@ export class ClipNode extends AudioWorkletNode {
      * @returns {number}
      */
     get duration() {
-        return this._duration ?? this._buffer?.duration ?? 0
+        return this._duration ?? this._buffer?.duration ?? -1
     }
 
     /**
      * @param {number} value
      */
     set offset(value) {
-        if (value === this._offset) {
-            return
-        }
-        if (value < 0) {
-            this._offset = Math.max(-(this._buffer?.duration ?? 0), value)
-        } else {
-            this._offset = Math.min(this._buffer?.duration ?? 0, value)
-        }
-        this.port.postMessage({ type: 'offset', data: this._offset })
+        this._offset = value
     }
 
     /**
@@ -329,10 +332,7 @@ export class ClipNode extends AudioWorkletNode {
 
     /** @param {number} value */
     set playhead(value) {
-        if (this._buffer !== undefined) {
-            let clamped = Math.min(Math.max(0, value), this._buffer.length)
-            this.port.postMessage({ type: 'playhead', data: clamped })
-        }
+        this.port.postMessage({ type: 'playhead', data: value })
     }
 
     /** @type {AudioParam} */
@@ -411,6 +411,23 @@ export class ClipNode extends AudioWorkletNode {
      */
     dispose() {
         this.port.postMessage({ type: 'dispose' })
+        this.port.close()
+        if (this.ondisposed !== undefined) {
+            this.ondisposed()
+            this.ondisposed = undefined
+        }
+        this._buffer = undefined
+        this._duration = undefined
+        this.onended = undefined
+        this.onframe = undefined
+        this.onlooped = undefined
+        this.onpaused = undefined
+        this.onresumed = undefined
+        this.onstarted = undefined
+        this.onstopped = undefined
+        this.onscheduled = undefined
+        this.onstatechange = undefined
+        this.state = 'disposed'
     }
 }
 

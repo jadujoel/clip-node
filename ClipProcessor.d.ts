@@ -1,4 +1,4 @@
-type ClipProcessorOnmessage = (ev: MessageEvent<ClipProcessorMessageRx>) => void
+type ClipProcessorOnmessage = (ev: { readonly data: ClipProcessorMessageRx }) => void
 
 interface ClipProcessorStateMap {
   readonly Initial: 0,
@@ -47,7 +47,6 @@ type ClipProcessorMessageRx
   | ClipProcessorLoopStartMessageRx
   | ClipProcessorLoopEndMessageRx
   | ClipProcessorPlayheadMessageRx
-  | ClipProcessorOffsetMessageRx
   | ClipProcessorFadeInMessageRx
   | ClipProcessorFadeOutMessageRx
   | ClipProcessorLoopCrossfadeMessageRx
@@ -120,11 +119,6 @@ interface ClipProcessorLoopEndMessageRx {
 
 interface ClipProcessorPlayheadMessageRx {
   readonly type: 'playhead',
-  readonly data: number
-}
-
-interface ClipProcessorOffsetMessageRx {
-  readonly type: 'offset',
   readonly data: number
 }
 

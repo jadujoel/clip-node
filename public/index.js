@@ -7,6 +7,7 @@ const infos = {
   currentFrame: getOutputElement('currentFrame'),
   timesLooped: getOutputElement('timesLooped'),
   latency: getOutputElement('latency'),
+  timeTaken: getOutputElement('timeTaken'),
 }
 
 const states = {
@@ -59,34 +60,26 @@ if (!searchParamsIncludes('disable-state')) {
 }
 
 const sampleRate = 48000
-const context = new AudioContext({ sampleRate});
-const addModulePromise = context.audioWorklet.addModule('clip-processor.js');
-const bufferPromise = decode('lml.webm', context)
+const bufferPromise = decode('lml.webm')
 
-function startContext() {
-  if (context.state === 'suspended') {
-    context.resume()
-    console.log('resumed context')
-  }
-}
+elements.start.addEventListener('click', start, { once: true })
 
-document.addEventListener('click', startContext, { once: true })
-
-start()
 async function start() {
-  await context.resume()
-  await addModulePromise
-  await context.resume()
+  const context = new AudioContext({ sampleRate })
+  await context.audioWorklet.addModule('./clip-processor.js')
   const buffer = await bufferPromise
   const node = new ClipNode(context, { processorOptions: { buffer: float32ArrayFromAudioBuffer(buffer) } });
   node.connect(context.destination)
 
   // states
-  states.start.onclick = () => node.start(
-    context.currentTime + controls.startDelay.value,
-    controls.offset.value,
-    controls.duration.value
-  )
+  states.start.onclick = () => {
+    console.log('start node')
+
+    node.start(
+      context.currentTime + controls.startDelay.value,
+      controls.offset.value,
+      controls.duration.value
+    )}
   states.stop.onclick = () => node.stop(context.currentTime + controls.stopDelay.value)
   states.pause.onclick = () => node.pause(context.currentTime + controls.stopDelay.value)
   states.resume.onclick = () => node.resume(context.currentTime + controls.startDelay.value)
@@ -152,19 +145,24 @@ async function start() {
   }
 
   // infos
-  infos.latency.value = context.outputLatency.toString()
+  infos.latency.value = context.outputLatency?.toString()
   node.onstatechange = () => {
     infos.state.value = node.state
   }
   node.onlooped = () => {
     infos.timesLooped.value = node.timesLooped.toString()
   }
-  node.onframe = () => {
-    controls.playhead.value = node.playhead
-    infos.currentTime.value = node.currentTime.toPrecision(4)
-    infos.currentFrame.value = node.currentFrame.toString()
+  node.onframe = ([currentTime, currentFrame, playhead, timeTaken]) => {
+    controls.playhead.value = playhead
+    infos.currentTime.value = currentTime.toPrecision(4)
+    infos.currentFrame.value = currentFrame.toString()
+    infos.timeTaken.value = timeTaken.toFixed(4)
     const timestamp = context.getOutputTimestamp()
-    infos.latency.value = `output: ${context.outputLatency} | base: ${context.baseLatency} | block: ${(context.currentTime - (timestamp.contextTime ?? 0)).toPrecision(3)}`
+    const output = Math.round(context.outputLatency * context.sampleRate)
+    const base = Math.round(context.baseLatency * context.sampleRate)
+    const total = Math.round((context.currentTime - (timestamp.contextTime ?? 0)) * context.sampleRate)
+    const ms = (total / context.sampleRate * 1000).toFixed(0)
+    infos.latency.value = `base: ${base} | output: ${output} | total: ${total} Samples = ${ms} Milliseconds`
   }
   node.addEventListener('processorerror', (e) => {
     console.error('node error', e)
