@@ -151,7 +151,6 @@ class ClipProcessor extends AudioWorkletProcessor {
                 this.playedSamples = 0
                 this.state = State.Scheduled
                 this.port.postMessage({ type: "scheduled" })
-
             break;
             case 'stop':
                 if (this.state === State.Ended || this.state === State.Initial) {

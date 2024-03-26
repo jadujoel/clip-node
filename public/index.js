@@ -73,7 +73,8 @@ async function start() {
 
   // states
   states.start.onclick = () => {
-    console.log('start node')
+    console.log('start')
+    context.resume()
 
     node.start(
       context.currentTime + controls.startDelay.value,
