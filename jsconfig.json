@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "checkJs": true,
+    "strict": true,
+    "noImplicitAny": true,
+    "noImplicitThis": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictPropertyInitialization": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    // "noUncheckedIndexedAccess": true,
+    "noImplicitReturns": true,
+    // "exactOptionalPropertyTypes": true,
+    "strictBindCallApply": true,
+    "noFallthroughCasesInSwitch": true,
+    "lib": [
+      "DOM",
+      "ESNext"
+    ],
+    // include the types from the file AudioWorklet.d.ts
+    // "types": ["./AudioWorklet.d.ts"],
+  },
+  "include": ["public/**/*"],
+}

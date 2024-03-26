@@ -2,36 +2,45 @@
 <script src="audio-control.js" type="module"></script>
 <script src="index.js" type="module"></script>
 
+<hr>
 <section id="display">
-<code>Load:</code><output id="load">0</output>
+<code>State:</code><output id="state">loading</output><br>
 <code>CurrentTime:</code><output id="currentTime">0</output>
 <code>CurrentFrame:</code><output id="currentFrame">0</output>
 <code>TimesLooped:</code><output id="timesLooped">0</output><br>
-<code>State:</code><output id="state">loading</output><br>
+<code>Latency:</code><output id="latency">unknown</output>
 </section>
+<hr>
 
 <section id="buttons">
 <button id="start">Start</button>
 <button id="stop">Stop</button>
 <button id="pause">Pause</button>
 <button id="resume">Resume</button>
+<button id="dispose">Dispose</button>
 </section>
+<hr>
 
 <section id="controls">
+<audio-control label="Playhead" step=1 min=0 max=480000 value=0></audio-control>
+
+<audio-control label="Offset" step=0.1 min=0 max=4 value=0 snap="bar"></audio-control>
+<audio-control label="Duration" step=0.1 min=-1 max=40 value=-1 snap="bar"></audio-control>
+<audio-control label="StartDelay" step=0.1 min=0 max=4 value=0 snap="beat"></audio-control>
+<audio-control label="StopDelay" step=0.1 min=0 max=4 value=0 snap="beat"></audio-control>
+<audio-control label="FadeIn" step=0.1 min=0 max=4 value=0 snap="beat"></audio-control>
+<audio-control label="FadeOut" step=0.1 min=0 max=4 value=0 snap="beat"></audio-control>
+
 <code>Loop</code><input type="checkbox" id="loop">
-<audio-control label="LoopStart" step="0.001" min="0" max="1" value="0"></audio-control>
-<audio-control label="LoopEnd" step="0.001" min="0" max="1" value="0"></audio-control>
-<audio-control label="PlaybackRate" step="0.01" min="-4" max="4" value="1"></audio-control>
-<audio-control label="Detune" step="100" min="-9600" max="9600" value="0"></audio-control>
-<audio-control label="Offset" step="0.1" min="0" max="4" value="0"></audio-control>
-<audio-control label="Duration" step="0.1" min="-1" max="40" value="-1"></audio-control>
-<audio-control label="Playhead" step="1" min="0" max="480000" value="0"></audio-control>
-<audio-control label="StartDelay" step="0.1" min="0" max="4" value="0"></audio-control>
-<audio-control label="StopDelay" step="0.1" min="0" max="4" value="0"></audio-control>
-<audio-control label="Gain" step="0.001" min="0" max="1" value="1"></audio-control>
-<audio-control label="Pan" step="0.001" min="-1" max="1" value="0"></audio-control>
-<audio-control label="Lowpass" step="1" min="20" max="20000" value="20"></audio-control>
-<audio-control label="Highpass" step="1" min="20" max="20000" value="20000"></audio-control>
-<audio-control label="FadeIn" step="0.1" min="0" max="4" value="0"></audio-control>
-<audio-control label="FadeOut" step="0.1" min="0" max="4" value="0"></audio-control>
+<audio-control label="LoopStart" step=0.001 min=0 max=1 value=0 tempo=116 snap="bar"></audio-control>
+<audio-control label="LoopEnd" step=0.001 min=0 max=1 value=0 tempo=116 snap="bar"></audio-control>
+<audio-control label="LoopCrossfade" step=0.001 min=0 max=1 value=0 snap="8th"></audio-control>
+
+<audio-control label="PlaybackRate" step=0.01 min=-4 max=4 value=1 precision="2"></audio-control>
+<audio-control label="Detune" step=100 min=-9600 max=9600 value=0 precision="2"></audio-control>
+<audio-control label="Gain" step=0.001 min=0 max=1 value=1></audio-control>
+<audio-control label="Pan" step=0.001 min=-1 max=1 value=0></audio-control>
+<audio-control label="Lowpass" step=1 min=20 max=20000 value=20000></audio-control>
+<audio-control label="Highpass" step=1 min=20 max=20000 value=20></audio-control>
 </section>
+<hr>

@@ -1,9 +1,13 @@
 {
   "extends": [
+    "eslint:recommended",
     "plugin:webperf/recommended",
     "plugin:oxlint/recommended"
   ],
   "parserOptions": {
     "ecmaVersion": 2022
+  },
+  "rules": {
+    "no-unused-vars": "warn"
   }
 }

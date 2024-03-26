@@ -1,32 +1,7 @@
-// these are globally existing variables in the AudioWorkletGlobalScope and just here for type reference
-/** @type {number} */
-// var sampleRate
-/** @type {number} */
-// var currentFrame
-/** @type {number} */
-// var currentTime
-/** @type {(name: string, processor: AudioWorkletProcessor) => void} */
-// var registerProcessor
+/// <reference path="../AudioWorklet.d.ts" />
+/// <reference path="../ClipProcessor.d.ts" />
 
-
-/**
- * @param {number} min
- * @param {number} max
- * @param {number} value
- * @returns {number}
- */
-function clamp(min, max, value) {
-    return Math.min(max, Math.max(min, value));
-}
-
-/**
- * @param {Float32Array} signal
- * @param {number} value
- */
-function clamper(signal, value) {
-    return clamp(0, signal?.length ?? 0, Math.round(value))
-}
-
+/** @type {ClipProcessorStateMap} */
 const State = {
     Initial: 0,
     Started: 1,
@@ -34,12 +9,8 @@ const State = {
     Paused: 3,
     Scheduled: 4,
     Ended: 5,
+    Disposed: 6
 }
-
-const secondsPerSample = 1 / 48000
-const secondsAvailablePerBlock = secondsPerSample * 128
-
-console.log('global scope', globalThis)
 
 class ClipProcessor extends AudioWorkletProcessor {
     static get parameterDescriptors() {
@@ -81,164 +52,213 @@ class ClipProcessor extends AudioWorkletProcessor {
             maxValue: 20000
         }]
     }
-
-    constructor(options) {
+     /**
+     * @param {ClipWorkletOptions | undefined} options
+     */
+     constructor(options) {
         super(options);
-
-        console.log('this', this, globalThis)
-
-        /** @type {Float32Array[]} */
-        this.signal;
-        this.playhead = 0;
-
-        this.loop = false;
-        /** @type {number} */
-        this.loopStart = 0; // In samples
-
-        /** @type {number} */
-        this.loopEnd; // In samples
-        /** @type {number} */
-        this.duration; // Duration of the buffer in seconds
-        /** @param {number} value */
-
-        this.startWhen = 0;
-        this.stopWhen = 0;
-        this.pauseWhen = 0;
-        this.resumeWhen = 0;
-
-        this.timesLooped = 0;
-        this.playedSamples = 0;
-
-        this.offset = 0;
-
-        /** @type {0 | 1 | 2 | 3} */
-        this.state = State.Initial
-
-        this.playbackRate = 1.0; // Default playback rate is normal speed
-
-        /** @type {number} */
-        this.duration
-        /** @type {number} */
+        /** @type {ClipProcessorOptions} */
+        const processorOptions = options?.processorOptions ?? {}
+        const {
+            buffer = [],
+            loopEnd = buffer[0]?.length,
+            loop = false,
+            playhead = 0,
+            loopStart,
+            duration,
+            offset = 0,
+            startWhen = 0,
+            stopWhen = 0,
+            pauseWhen = 0,
+            resumeWhen = 0,
+            playedSamples = 0,
+            state = State.Initial,
+            timesLooped = 0,
+            fadeInDuration = 0,
+            fadeOutDuration = 0,
+            crossfadeDuration = 0
+        } = processorOptions
+        this.signal = buffer
+        this.original = copy(buffer)
+        this.playhead = playhead;
+        this.loop = loop;
+        this.loopStart = loopStart
+        this.loopEnd = loopEnd
+        this.duration = duration
+        this.startWhen = startWhen;
+        this.stopWhen = stopWhen;
+        this.pauseWhen = pauseWhen;
+        this.resumeWhen = resumeWhen;
+        this.timesLooped = timesLooped;
+        this.playedSamples = playedSamples;
+        this.offset = offset;
+        this.state = state;
+        this.duration = duration
+        /** @type {number | undefined} */
         this.durationSamples
 
-        this.fadeIn = 0
-        this.fadeInSamples = 0
-
-        this.fadeOut = 0
-        this.fadeOutSamples = 0
-
+        this.fadeInDuration = fadeInDuration
+        this.fadeInSamples = fadeInDuration * sampleRate
+        this.fadeOutDuration = fadeOutDuration
+        this.fadeOutSamples = fadeOutDuration * sampleRate
+        this.crossfadeDuration = crossfadeDuration
+        this.crossfadeSamples = crossfadeDuration * sampleRate
 
         /** @type {number | undefined} */
         this.remainingSamples
 
-        this.port.onmessage = event => {
-            const { type, data } = event.data;
-            if (type !== 'playhead') {
-                console.log('proc', type, data)
-            }
-            switch (type) {
-                case 'buffer':
-                    this.signal = data;
-                break;
-                case 'start':
-                    this.loopStart ??= 0
-                    this.loopEnd ??= this.signal[0].length
-                    if (data.duration) {
-                        this.duration = Number(data.duration)
-                    } else {
-                        this.duration = this.loop ? Number.MAX_SAFE_INTEGER : (this.signal[0].length / sampleRate)
-                    }
-                    if (this.duration === -1) {
-                        if (this.loop) {
-                            this.duration = Number.MAX_SAFE_INTEGER
-                        } else {
-                            this.duration = this.signal[0].length / sampleRate
-                        }
-                    }
-                    this.durationSamples = Math.min(this.duration * sampleRate, Number.MAX_SAFE_INTEGER)
-                    this.offset = Math.floor(Number(data.offset ?? 0) * sampleRate)
-                    if (this.offset < 0) {
-                        this.offset = this.signal[0].length + this.offset
-                    }
-                    if (this.offset > this.signal[0].length) {
-                        this.offset = this.signal[0].length % this.offset
-                    }
+        this.port.onmessageerror = event => {
+            console.error('clip-processor-port-error', event)
+        }
+        this.port.onmessage = this.onmessage.bind(this)
+        console.log('this', this, globalThis)
+    }
 
-                    this.playhead = Math.floor(Number(this.offset))
-                    this.startWhen = Number(data.when ?? currentTime)
-                    this.stopWhen = this.startWhen + this.duration
-                    this.playedSamples = 0
-                    // this.port.postMessage({ type: "started" })
-                    this.state = State.Scheduled
-
-                    this.port.postMessage({ type: "scheduled" })
-                    console.log(this)
-
-                break;
-                case 'stop':
-                    if (this.state === State.Ended || this.state === State.Initial) {
-                        break;
-                    }
-                    // this.state = State.Ended
-                    this.stopWhen = data ?? this.stopWhen
-                    this.state = State.Stopped
-                    this.port.postMessage({ type: "stopped" })
-                    console.log(this)
-                    // this.playedSamples = 0
-                    // console.log(currentTime, this.stopWhen)
-                break;
-                case 'pause':
-                    this.state = State.Paused
-                    this.pauseWhen = data ?? currentTime
-                    this.port.postMessage({ type: "paused" })
-                break;
-                case 'resume':
-                    this.state = State.Started
-                    this.startWhen = data ?? currentTime
-                    this.port.postMessage({ type: 'resume' })
-                case 'loop':
-                    this.loop = Boolean(data);
+    /** @type {ClipProcessorOnmessage} */
+    onmessage(event) {
+        const { type, data } = event.data;
+        if (type !== 'playhead') {
+            console.log('proc', type, data)
+        }
+        switch (type) {
+            case 'buffer':
+                this.signal = data
+                this.original = copy(data, [])
+            break;
+            case 'start':
+                this.loopStart ??= 0
+                this.loopEnd ??= this.signal[0].length
+                if (data?.duration) {
+                    this.duration = Number(data.duration)
+                } else {
+                    this.duration = this.loop ? Number.MAX_SAFE_INTEGER : (this.signal[0].length / sampleRate)
+                }
+                if (this.duration === -1) {
                     if (this.loop) {
-                        if (this.state === State.Scheduled || this.state === State.Started) {
-                            this.stopWhen = Number.MAX_SAFE_INTEGER
-                            this.duration = Number.MAX_SAFE_INTEGER
-                            this.durationSamples = Number.MAX_SAFE_INTEGER
-                        }
-                    }
-                break;
-                case 'loopStart':
-                    this.loopStart = clamper(this.signal[0], data * sampleRate);
-                break;
-                case 'loopEnd':
-                    this.loopEnd = clamper(this.signal[0], data * sampleRate);
-                break;
-                case 'playhead':
-                    if (data) {
-                        const value = Number(data)
-                        this.playhead = value;
-                        console.log('set playhead', value)
+                        this.duration = Number.MAX_SAFE_INTEGER
                     } else {
-                        this.port.postMessage({ type: "playhead", data: Math.floor(this.playhead) })
+                        this.duration = this.signal[0].length / sampleRate
                     }
-                break;
-                case 'playbackRate':
-                    this.playbackRate = data;
-                break;
-                case 'offset':
-                    this.offset = data.offset
-                break
-                case 'fadeIn':
-                    this.fadeIn = data
-                    this.fadeInSamples = data * sampleRate
-                break
-                case 'fadeOut':
-                    this.fadeOut = data
-                    this.fadeOutSamples = data * sampleRate
-                break
-                default:
-                break
+                }
+                this.durationSamples = Math.min(this.duration * sampleRate, Number.MAX_SAFE_INTEGER)
+                this.offset = Math.floor(Number(data?.offset ?? 0) * sampleRate)
+                if (this.offset < 0) {
+                    this.offset = this.signal[0].length + this.offset
+                }
+                if (this.offset > this.signal[0].length) {
+                    this.offset = this.signal[0].length % this.offset
+                }
+
+                this.playhead = Math.floor(Number(this.offset))
+                this.startWhen = Number(data?.when ?? currentTime)
+                this.stopWhen = this.startWhen + this.duration
+                this.playedSamples = 0
+                this.state = State.Scheduled
+
+                this.port.postMessage({ type: "scheduled" })
+                console.log(this)
+
+            break;
+            case 'stop':
+                if (this.state === State.Ended || this.state === State.Initial) {
+                    break;
+                }
+                this.stopWhen = data ?? this.stopWhen
+                this.state = State.Stopped
+                this.port.postMessage({ type: "stopped" })
+            break;
+            case 'pause':
+                this.state = State.Paused
+                this.pauseWhen = data ?? currentTime
+                this.port.postMessage({ type: "paused" })
+            break;
+            case 'resume':
+                this.state = State.Started
+                this.startWhen = data ?? currentTime
+                this.port.postMessage({ type: 'resume' })
+            break;
+            case 'dispose':
+                this.dispose()
+            break;
+            case 'loop':
+                this.loop = Boolean(data);
+                if (this.loop) {
+                    if (this.state === State.Scheduled || this.state === State.Started) {
+                        this.stopWhen = Number.MAX_SAFE_INTEGER
+                        this.duration = Number.MAX_SAFE_INTEGER
+                        this.durationSamples = Number.MAX_SAFE_INTEGER
+                    }
+                }
+                this.updateCrossfade()
+            break;
+            case 'loopStart':
+                this.loopStart = clamper(this.signal[0], data * sampleRate);
+                // this.updateCrossfade()
+            break;
+            case 'loopEnd':
+                this.loopEnd = clamper(this.signal[0], data * sampleRate);
+                // this.updateCrossfade()
+            break;
+            case 'playhead':
+                if (data) {
+                    const value = Number(data)
+                    this.playhead = value;
+                    console.log('set playhead', value)
+                } else {
+                    this.port.postMessage({ type: "playhead", data: Math.floor(this.playhead) })
+                }
+            break;
+            case 'offset':
+                this.offset = data
+            break
+            case 'fadeIn':
+                this.fadeInDuration = data
+                this.fadeInSamples = data * sampleRate
+            break
+            case 'fadeOut':
+                this.fadeOutDuration = data
+                this.fadeOutSamples = data * sampleRate
+            break
+            case 'loopCrossfade':
+                this.crossfadeDuration = data
+                this.crossfadeSamples = data * sampleRate
+                this.updateCrossfade()
+            break
+            default:
+            break
+        }
+    }
+
+    updateCrossfade() {
+        if (this.crossfadeSamples <= 0 || !this.loop) {
+            copy(this.original, this.signal)
+            return
+        }
+        const loopStart = this.loopStart ?? 0
+        const loopEnd = this.loopEnd ?? this.signal[0].length
+        for (let i = 0; i < this.crossfadeSamples; ++i) {
+            for (let ch = 0; ch < this.original.length; ++ch) {
+                const fadeIn = i / this.crossfadeSamples
+                const fadeOut = 1 - fadeIn
+                this.signal[ch][loopStart + i]
+                    = this.original[ch][loopStart + i] * fadeIn
+                    + this.original[ch][loopEnd + i] * fadeOut;
             }
-        };
+        }
+        // make sure we restore any old crossfades
+        for (let i = this.crossfadeSamples; i < this.signal[0].length; ++i) {
+            for (let ch = 0; ch < this.original.length; ++ch) {
+                this.signal[ch][i] = this.original[ch][i]
+            }
+        }
+    }
+
+    dispose() {
+        this.state = State.Disposed
+        this.port.postMessage({ type: "disposed" })
+        this.port.close()
+        this.signal = []
+        this.original = []
     }
 
     /**
@@ -246,7 +266,10 @@ class ClipProcessor extends AudioWorkletProcessor {
      * @param {Float32Array[][]} outputs
      * @param {Record<string, Float32Array>} parameters
      */
-    process(_inputs, outputs, parameters) {
+    process(inputs, outputs, parameters) {
+        if (this.state === State.Disposed) {
+            return false
+        }
         const ondone = () => {
             this.port.postMessage({ type: 'frame', data: [currentTime, currentFrame, Math.floor(this.playhead), 0] })
             return true
@@ -258,23 +281,26 @@ class ClipProcessor extends AudioWorkletProcessor {
             return ondone()
         }
         if (this.state === State.Ended) {
-            this.fillWithSilence(outputs[0])
+            fillWithSilence(outputs[0])
             return ondone()
         }
         if (this.state === State.Scheduled) {
             if (currentTime >= this.startWhen) {
                 this.state = State.Started
                 this.port.postMessage({ type: "started" })
+            } else {
+                fillWithSilence(outputs[0])
+                return ondone()
             }
         } else if (this.state === State.Paused) {
             if (currentTime > this.pauseWhen) {
-                this.fillWithSilence(outputs[0])
+                fillWithSilence(outputs[0])
                 return ondone()
             }
         }
         // otherwise we are in started or stopped state
         if (currentTime > this.stopWhen) {
-            this.fillWithSilence(outputs[0])
+            fillWithSilence(outputs[0])
             this.state = State.Ended
             this.port.postMessage({ type: "ended" })
             this.playedSamples = 0
@@ -288,22 +314,32 @@ class ClipProcessor extends AudioWorkletProcessor {
             gain: gains,
             pan: pans
         } = parameters;
+        const durationSamples = this.durationSamples ?? Number.MAX_SAFE_INTEGER
 
         const outch = outputs[0];
         const sourceLength = this.signal[0].length;
+        if (sourceLength === 0) {
+            fillWithSilence(outch)
+            return ondone()
+        }
         const nc = Math.min(this.signal.length, outch.length)
         const ns = Math.min(this.signal[0]?.length, outch[0]?.length)
 
         let ended = false
+        let playedThisBlock = 0
+        let playbackRate = playbackRates[0] ?? 1.0
+        let detune = detunes[0] ?? 0
+        const loopStart = this.loopStart ?? 0
+        const loopEnd = this.loopEnd ?? sourceLength
 
         for (let i = 0; i < ns; ++i) {
-            if (this.playedSamples > this.durationSamples) {
+            if (this.playedSamples > durationSamples) {
                 ended = true
                 break
             }
             // Calculate the final playback rate for each sample
-            const playbackRate = playbackRates.length > 1 ? playbackRates[i] : playbackRates[0];
-            const detune = detunes.length > 1 ? detunes[i] : detunes[0];
+            playbackRate = playbackRates[i] ?? playbackRate;
+            detune = detunes[i] ?? detune
             const rate = playbackRate * Math.pow(2, detune / 1200);
 
             // Update playhead position
@@ -311,12 +347,14 @@ class ClipProcessor extends AudioWorkletProcessor {
 
             // Handle looping
             if (this.loop) {
-                if (rate > 0 && this.playhead >= this.loopEnd) {
-                    this.playhead = this.loopStart + (this.playhead - this.loopEnd);
+                // maybe go to loop start
+                if (rate > 0 && this.playhead >= loopEnd) {
+                    this.playhead = loopStart + (this.playhead - loopEnd);
                     this.port.postMessage({ type: 'looped', data: this.timesLooped });
                     this.timesLooped++;
-                } else if (rate < 0 && this.playhead < this.loopStart) {
-                    this.playhead = this.loopEnd + (this.playhead - this.loopStart);
+                // if reversed, maybe go to loop end
+                } else if (rate < 0 && this.playhead < loopStart) {
+                    this.playhead = loopEnd + (this.playhead - loopStart);
                     this.port.postMessage({ type: 'looped', data: this.timesLooped });
                     this.timesLooped++;
                 }
@@ -346,9 +384,10 @@ class ClipProcessor extends AudioWorkletProcessor {
                 }
             }
             this.playedSamples += 1;
+            playedThisBlock += 1
         }
 
-        const shouldFadeIn = this.fadeIn > 0 && this.playedSamples < this.fadeInSamples;
+        const shouldFadeIn = this.fadeInDuration > 0 && this.playedSamples < this.fadeInSamples;
         if (shouldFadeIn) {
             const remaining = this.fadeInSamples - this.playedSamples
             const thisblock = Math.min(ns, remaining)
@@ -360,7 +399,7 @@ class ClipProcessor extends AudioWorkletProcessor {
             }
         }
 
-        if (this.fadeOut > 0) {
+        if (this.fadeOutDuration > 0) {
             // fadeout
             if (this.state === State.Stopped) {
                 // const remaining = this.durationSamples - this.playedSamples - 1
@@ -377,8 +416,8 @@ class ClipProcessor extends AudioWorkletProcessor {
                         outch[ch][i] = 0
                     }
                 }
-            } else if (this.playedSamples > (this.durationSamples - this.fadeOutSamples)) {
-                const remaining = this.durationSamples - this.playedSamples
+            } else if (this.playedSamples > (durationSamples - this.fadeOutSamples)) {
+                const remaining = durationSamples - (this.playedSamples - playedThisBlock)
                 const fadeSamples = Math.min(ns, remaining)
                 for (let i = 0; i < fadeSamples; ++i) {
                     const frac = (remaining - i) / this.fadeOutSamples
@@ -395,12 +434,28 @@ class ClipProcessor extends AudioWorkletProcessor {
             }
         }
 
+        // is this really correct??
+        if (this.loop && this.crossfadeSamples > 0) {
+            const crossfadeStart = loopEnd - this.crossfadeSamples
+            const crossfadeEnd = loopStart + this.crossfadeSamples
+            if (this.playedSamples > crossfadeStart && this.playedSamples < crossfadeEnd) {
+                const remaining = crossfadeEnd - this.playedSamples
+                const fadeSamples = Math.min(ns, remaining)
+                for (let i = 0; i < fadeSamples; ++i) {
+                    const frac = (remaining - i) / this.crossfadeSamples
+                    for (let ch = 0; ch < nc; ++ch) {
+                        outch[ch][i] *= frac
+                    }
+                }
+            }
+        }
+
         for (let channel = 0; channel < nc; ++channel) {
             const signal = outch[channel];
             lowpassFilter(signal, lowpass, channel)
             highpassFilter(signal, highpass, channel)
-            gainFilter(signal, gains, channel)
         }
+        gainFilter(outch, gains)
         if (nc === 2) {
             panStereoFilterLinear(outch[0], outch[1], pans)
         }
@@ -411,18 +466,33 @@ class ClipProcessor extends AudioWorkletProcessor {
         }
         return ondone()
     }
+}
 
-    /** @param {Float32Array[]} output */
-    fillWithSilence(output) {
-        for (let channel = 0; channel < output.length; ++channel) {
-            const outputChannel = output[channel];
-            for (let i = 0; i < outputChannel.length; ++i) {
-                outputChannel[i] = 0;
-            }
+/**
+ * @param {Float32Array[]} source
+ * @param {Float32Array[]} target
+ */
+function copy(source, target = []) {
+    for (let i = target.length; i < source.length; i++) {
+        target[i] = new Float32Array(source[i].length)
+    }
+    for (let ch = 0; ch < source.length; ++ch) {
+        for (let i = 0; i < source[ch].length; ++i) {
+            target[ch][i] = source[ch][i]
+        }
+    }
+    return target
+}
+
+/** @param {Float32Array[]} output */
+function fillWithSilence(output) {
+    for (let channel = 0; channel < output.length; ++channel) {
+        const outputChannel = output[channel];
+        for (let i = 0; i < outputChannel.length; ++i) {
+            outputChannel[i] = 0;
         }
     }
 }
-
 
 /**
  * @param {number} y0
@@ -455,36 +525,35 @@ function cubicInterpolate(y0, y1, y2, y3, mu) {
 
 /**
  * @param {Float32Array[]} arr
- * @param {number[]} gains
- * @param {number} channel
+ * @param {Float32Array} gains
  */
 function gainFilter(arr, gains) {
     if (gains.length === 1) {
         const gain = gains[0];
         if (gain === 1) return;
         for (let ch of arr) {
-            for (let i = 0; i < arr.length; i++) {
+            for (let i = 0; i < ch.length; i++) {
                 ch[i] *= gain;
             }
         }
         return
     }
+    let gain = gains[0];
     for (let ch of arr) {
-        for (let i = 0; i < arr.length; i++) {
-            const gain = gains[i] ?? 1
-            if (gain === 1) continue;
+        for (let i = 0; i < ch.length; i++) {
+            gain = gains[i] ?? gain
             ch[i] *= gain
         }
     }
 }
 
 // Pre-filtering state
-/** @type {{x_1: number, x_2: number, y_1: number, y_2: number}} */
+/** @type {{x_1: number, x_2: number, y_1: number, y_2: number}[]} */
 const lowpassStates = [];
 /**
  * @param {Float32Array} arr
- * @param {number[]} cutoff
- * @param {number} sampleRate
+ * @param {Float32Array} cutoffs
+ * @param {number} channel
  */
 function lowpassFilter(arr, cutoffs, channel) {
     let { x_1, x_2, y_1, y_2 } = lowpassStates[channel] ?? { x_1: 0, x_2: 0, y_1: 0, y_2: 0 }
@@ -549,12 +618,11 @@ function lowpassFilter(arr, cutoffs, channel) {
 }
 
 // Pre-filtering state for highpass
-/** @type {{x_1: number, x_2: number, y_1: number, y_2: number}} */
+/** @type {{x_1: number, x_2: number, y_1: number, y_2: number}[]} */
 const highpassStates = [];
 /**
  * @param {Float32Array} arr
- * @param {number[]} cutoffs
- * @param {number} sampleRate
+ * @param {Float32Array} cutoffs
  * @param {number} channel
  */
 function highpassFilter(arr, cutoffs, channel) {
@@ -623,7 +691,7 @@ function highpassFilter(arr, cutoffs, channel) {
  * Applies stereo panning to a stereo audio signal.
  * @param {Float32Array} l The left channel of the stereo audio signal.
  * @param {Float32Array} r The right channel of the stereo audio signal.
- * @param {number[]} pan The pan value ranging from -1 (full left) to 1 (full right).
+ * @param {number[]} pans The pan value ranging from -1 (full left) to 1 (full right).
  */
 function panStereoFilterSmooth(l, r, pans) {
     if (pans.length === 1) {
@@ -650,6 +718,12 @@ function panStereoFilterSmooth(l, r, pans) {
     }
 }
 
+/**
+ * Applies stereo panning to a stereo audio signal.
+ * @param {Float32Array} l The left channel of the stereo audio signal.
+ * @param {Float32Array} r The right channel of the stereo audio signal.
+ * @param {Float32Array} pans The pan value ranging from -1 (full left) to 1 (full right).
+ */
 function panStereoFilterLinear(l, r, pans) {
     if (pans.length === 1) {
         const pan = pans[0];
@@ -675,5 +749,22 @@ function panStereoFilterLinear(l, r, pans) {
     }
 }
 
+/**
+ * @param {number} min
+ * @param {number} max
+ * @param {number} value
+ * @returns {number}
+ */
+function clamp(min, max, value) {
+    return Math.min(max, Math.max(min, value));
+}
+
+/**
+ * @param {Float32Array} signal
+ * @param {number} value
+ */
+function clamper(signal, value) {
+    return clamp(0, signal?.length ?? 0, Math.round(value))
+}
 
 registerProcessor('clip-processor', ClipProcessor);

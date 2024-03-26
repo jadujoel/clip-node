@@ -1,15 +1,13 @@
-/** @type {AudioBufferSourceNode} */
+// /** @type {AudioBufferSourceNode} */
 export class ClipNode extends AudioWorkletNode {
     /**
      * @param {AudioContext} context
-     * @param {AudioWorkletNodeOptions} options
+     * @param {ClipWorkletOptions} options
      * */
     constructor(context, {
         numberOfInputs = 0,
         outputChannelCount = [2],
-        processorOptions = {
-            sampleRate: 48000
-        },
+        processorOptions,
         channelCount,
         channelCountMode,
         channelInterpretation,
@@ -26,38 +24,58 @@ export class ClipNode extends AudioWorkletNode {
             numberOfOutputs,
             parameterData,
         });
-        this._buffer = null; // To hold the AudioBuffer
+        /** @type {TypedAudioParamMap<'playbackRate' | 'detune' | 'highpass' | 'lowpass' | 'gain'  | 'pan'>} */
+        // @ts-ignore
+        this.parameters
         this.sampleRate = context.sampleRate; // You might need this for calculations
-        /** @type {() => void | undefined} */
-        this._onscheduled = undefined
-        /** @type {() => void | undefined} */
-        this._onstarted = undefined
-        /** @type {() => void | undefined} */
-        this._onpaused = undefined
-        /** @type {() => void | undefined} */
-        this._onresumed = undefined
-        /** @type {() => void | undefined} */
-        this._onended = undefined
-        /** @type {() => void | undefined} */
-        this._onlooped = undefined
-        /** @type {() => void | undefined} */
-        this._onstopped = undefined
-        /** @type {() => void | undefined} */
-        this._onframe = undefined
-        /** @type {() => void | undefined} */
-        this._onstatechange = undefined
-        this._loopStart = 0
-        this._loopEnd = 0
-        this._loop = false
-        this._offset = 0
+        /** @type {(() => void) | undefined} */
+        this.onscheduled = undefined
+        /** @type {(() => void) | undefined} */
+        this.onstarted = undefined
+        /** @type {(() => void) | undefined} */
+        this.onpaused = undefined
+        /** @type {(() => void) | undefined} */
+        this.onresumed = undefined
+        /** @type {(() => void) | undefined} */
+        this.onended = undefined
+        /** @type {(() => void) | undefined} */
+        this.onlooped = undefined
+        /** @type {(() => void) | undefined} */
+        this.onstopped = undefined
+        /** @type {(() => void) | undefined} */
+        this.onframe = undefined
+        /** @type {((state: string) => void) | undefined} */
+        this.onstatechange = undefined
+        /** @type {AudioBuffer | undefined} */
+        this._buffer = audioBufferFromFloat32Array(this.context, processorOptions?.buffer)
+        /** @type {number | undefined} */
         this._duration
+        /** @type {number} */
+        this._loopStart = 0
+        /** @type {number} */
+        this._loopEnd = 0
+        /** @type {boolean} */
+        this._loop = false
+        /** @type {number} */
+        this._offset = 0
+        /** @type {number} */
         this._playhead = 0
-        this._fadeIn = 0.001
-        this._fadeOut = 0.001
+        /** @type {number} */
+        this._fadeIn = 0
+        /** @type {number} */
+        this._fadeOut = 0
+        /** @type {number} */
+        this._loopCrossfade = 0
+        /** @type {number} */
+        this._duration = -1
+        /** @type {number} */
         this.timesLooped = 0
+        /** @type {string} */
         this.state = 'initial'
+        /** @type {string} */
         this.previousState = 'initial'
-        this.load = 0
+        /** @type {number} */
+        this.cpu = 0
         /** @type {number} */
         this.currentTime
         /** @type {number} */
@@ -75,77 +93,84 @@ export class ClipNode extends AudioWorkletNode {
                     /** @type [number, number, number, number] */
                     const [currentTime, currentFrame, playhead, load] = data
                     this._playhead = playhead
-                    this.load = load
+                    this.cpu = load
                     this.currentFrame = currentFrame
                     this.currentTime = currentTime
-                    if (this._onframe !== undefined) {
-                        this._onframe()
+                    if (this.onframe !== undefined) {
+                        this.onframe()
                     }
                     break
                 case 'scheduled':
                     this.state = "scheduled"
-                    if (this._onscheduled !== undefined) {
-                        this._onscheduled()
+                    if (this.onscheduled !== undefined) {
+                        this.onscheduled()
                     }
-                    if (this.state !== this.previousState && this._onstatechange !== undefined) {
-                        this._onstatechange(this.state)
+                    if (this.state !== this.previousState && this.onstatechange !== undefined) {
+                        this.onstatechange(this.state)
                     }
                     break
                 case 'started':
                     this.state = "started"
-                    if (this.state !== this.previousState && this._onstatechange !== undefined) {
-                        this._onstatechange(this.state)
+                    if (this.state !== this.previousState && this.onstatechange !== undefined) {
+                        this.onstatechange(this.state)
                     }
-                    if (this._onstarted !== undefined) {
-                        this._onstarted()
+                    if (this.onstarted !== undefined) {
+                        this.onstarted()
                     }
                     break
                 case 'stopped':
                     this.state = "stopped"
-                    if (this._onstopped !== undefined) {
-                        this._onstopped()
+                    if (this.onstopped !== undefined) {
+                        this.onstopped()
                     }
-                    if (this.state !== this.previousState && this._onstatechange !== undefined) {
-                        this._onstatechange(this.state)
+                    if (this.state !== this.previousState && this.onstatechange !== undefined) {
+                        this.onstatechange(this.state)
                     }
                     break
                 case 'paused':
                     this.state = "paused"
-                    if (this._onpaused !== undefined) {
-                        this._onpaused()
+                    if (this.onpaused !== undefined) {
+                        this.onpaused()
                     }
-                    if (this.state !== this.previousState && this._onstatechange !== undefined) {
-                        this._onstatechange(this.state)
+                    if (this.state !== this.previousState && this.onstatechange !== undefined) {
+                        this.onstatechange(this.state)
                     }
                     break
                 case 'resume':
                     this.state = "resumed"
-                    if (this._onresumed !== undefined) {
-                        this._onresumed()
+                    if (this.onresumed !== undefined) {
+                        this.onresumed()
                     }
-                    if (this.state !== this.previousState && this._onstatechange !== undefined) {
-                        this._onstatechange(this.state)
+                    if (this.state !== this.previousState && this.onstatechange !== undefined) {
+                        this.onstatechange(this.state)
                     }
                     break
                 case 'ended':
                     this.state = "ended"
-                    if (this._onended !== undefined) {
-                        this._onended()
+                    if (this.onended !== undefined) {
+                        this.onended()
                     }
-                    if (this.state !== this.previousState && this._onstatechange !== undefined) {
-                        this._onstatechange(this.state)
+                    if (this.state !== this.previousState && this.onstatechange !== undefined) {
+                        this.onstatechange(this.state)
                     }
                     break
                 case 'looped':
                     this.timesLooped++
-                    if (this._onlooped !== undefined) {
-                        this._onlooped()
+                    if (this.onlooped !== undefined) {
+                        this.onlooped()
+                    }
+                    break
+                case 'disposed':
+                    this.state = "disposed"
+                    if (this.state !== this.previousState && this.onstatechange !== undefined) {
+                        this.onstatechange(this.state)
                     }
                     break
             }
         }
     }
 
+    /** @returns {AudioBuffer | undefined} */
     get buffer() {
         return this._buffer;
     }
@@ -163,6 +188,7 @@ export class ClipNode extends AudioWorkletNode {
      * @param {number | undefined} when
      * @param {number | undefined} offset
      * @param {number | undefined} duration
+     * @returns {void}
      */
     start(when, offset, duration) {
         if (!this._buffer) {
@@ -179,22 +205,34 @@ export class ClipNode extends AudioWorkletNode {
         });
     }
 
-    /** @param {number} when  */
+    /**
+     * @param {number} when
+     * @returns {void}
+     * */
     stop(when = this.context.currentTime, initialDelay = 0, fadeOut = this._fadeOut) {
         this.port.postMessage({ type: 'stop', data: when + initialDelay + fadeOut + 0.2 });
     }
 
-    /** @param {number} when  */
+    /**
+     * @param {number} when
+     * @returns {void}
+     **/
     pause(when = this.context.currentTime) {
         this.port.postMessage({ type: 'pause', data: when })
     }
 
-    /** @param {number} when  */
+    /**
+     * @param {number} when
+     * @returns {void}
+     **/
     resume(when = this.context.currentTime) {
         this.port.postMessage(({ type: 'resume', data: when }))
     }
 
-    /** @param {boolean} */
+    /**
+     * @param {boolean} value
+     * @returns {void}
+     * */
     set loop(value) {
         if (this._loop !== value) {
             this._loop = value
@@ -202,21 +240,14 @@ export class ClipNode extends AudioWorkletNode {
         }
     }
 
+    /** @returns {boolean} */
     get loop() {
         return this._loop
     }
 
-    /** @param {(state: string) => void} callback */
-    set onstatechange(callback) {
-        this._onstatechange = callback
-    }
-
-    get onstatechange() {
-        return this._onstatechange
-    }
-
     /**
      * @param {number} value
+     * @returns {void}
      */
     set loopStart(value) {
         if (value !== this._loopStart) {
@@ -225,6 +256,9 @@ export class ClipNode extends AudioWorkletNode {
         }
     }
 
+    /**
+     * @returns {number}
+     */
     get loopStart() {
         return this._loopStart
     }
@@ -233,18 +267,22 @@ export class ClipNode extends AudioWorkletNode {
      * @param {number} value
      */
     set loopEnd(value) {
-        if (value !== this._loopEnd) {
+        if (value !== this._loopEnd && this._buffer !== undefined) {
             this._loopEnd = Math.min(Math.max(value, this._loopStart + 0.1), this._buffer.duration)
             this.port.postMessage({ type: 'loopEnd', data: this._loopEnd });
         }
     }
 
+    /**
+     * @returns {number}
+     */
     get loopEnd() {
         return this._loopEnd
     }
 
     /**
      * @param {number} value
+     * @returns {void}
      */
     set duration(value) {
         if (value !== this._duration) {
@@ -253,8 +291,11 @@ export class ClipNode extends AudioWorkletNode {
         }
     }
 
+    /**
+     * @returns {number}
+     */
     get duration() {
-        return this._duration ?? this._buffer.duration
+        return this._duration ?? this._buffer?.duration ?? 0
     }
 
     /**
@@ -265,51 +306,33 @@ export class ClipNode extends AudioWorkletNode {
             return
         }
         if (value < 0) {
-            this._offset = Math.max(-this._buffer.duration, value)
+            this._offset = Math.max(-(this._buffer?.duration ?? 0), value)
         } else {
-            this._offset = Math.min(this._buffer.duration, value)
+            this._offset = Math.min(this._buffer?.duration ?? 0, value)
         }
         this.port.postMessage({ type: 'offset', data: this._offset })
     }
 
+    /**
+     * @returns {number}
+     */
     get offset() {
         return this._offset
     }
 
-    get onended() {
-        return this.onended
-    }
-
-    /** @type {() => unknown} */
-    set onended(callback) {
-        this._onended = callback
-    }
-
-    get onlooped() {
-        return this._onlooped
-    }
-
-    /** @type {() => unknown} */
-    set onlooped(callback) {
-        this._onlooped = callback
-    }
-
-    get onframe() {
-        return this._onframe
-    }
-
-    set onframe(callback) {
-        this._onframe = callback
-    }
-
+    /**
+     * @returns {number}
+     */
     get playhead() {
         return this._playhead
     }
 
     /** @param {number} value */
     set playhead(value) {
-        let clamped = Math.min(Math.max(0, value), this._buffer.length)
-        this.port.postMessage({ type: 'playhead', data: clamped })
+        if (this._buffer !== undefined) {
+            let clamped = Math.min(Math.max(0, value), this._buffer.length)
+            this.port.postMessage({ type: 'playhead', data: clamped })
+        }
     }
 
     /** @type {AudioParam} */
@@ -342,6 +365,9 @@ export class ClipNode extends AudioWorkletNode {
         return this.parameters.get('pan')
     }
 
+    /**
+     * @returns {number}
+     */
     get fadeIn() {
         return this._fadeIn
     }
@@ -352,6 +378,9 @@ export class ClipNode extends AudioWorkletNode {
         this.port.postMessage({ type: 'fadeIn', data: value })
     }
 
+    /**
+     * @returns {number}
+     */
     get fadeOut() {
         return this._fadeOut
     }
@@ -361,4 +390,57 @@ export class ClipNode extends AudioWorkletNode {
         this._fadeOut = value
         this.port.postMessage({ type: 'fadeOut', data: value })
     }
+
+    /**
+     * @returns {number}
+     */
+    get loopCrossfade() {
+        return this._loopCrossfade
+    }
+
+    /**
+     * @param {number} value
+     **/
+    set loopCrossfade(value) {
+        this._loopCrossfade = value
+        this.port.postMessage({ type: 'loopCrossfade', data: value })
+    }
+
+    /**
+     * @returns {void}
+     */
+    dispose() {
+        this.port.postMessage({ type: 'dispose' })
+    }
+}
+
+/**
+ *
+ * @param {AudioBuffer | undefined} buffer
+ * @returns {Float32Array[]}
+ */
+export function float32ArrayFromAudioBuffer(buffer) {
+    if (buffer === undefined) {
+        return []
+    }
+    const data = buffer.numberOfChannels === 1
+        ? [buffer.getChannelData(0)]
+        : [buffer.getChannelData(0), buffer.getChannelData(1)]
+    return data
+}
+
+/**
+ * @param {BaseAudioContext} context
+ * @param {Float32Array[] | undefined} data
+ * @returns {AudioBuffer | undefined}
+ */
+export function audioBufferFromFloat32Array(context, data) {
+    if (data === undefined) {
+        return undefined
+    }
+    const buffer = context.createBuffer(data.length, data[0].length, context.sampleRate)
+    for (let i = 0; i < data.length; i++) {
+        buffer.copyToChannel(data[i], i)
+    }
+    return buffer
 }

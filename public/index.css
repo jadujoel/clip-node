@@ -30,8 +30,9 @@ input {
 }
 
 audio-control {
-  display: flex;
-  align-items: center;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  place-items: center;
   border: 1px solid grey;
   padding-left: 1em;
   padding-right: 1em;
@@ -48,4 +49,13 @@ audio-control::part(label) {
 
 audio-control::part(output) {
   color: white;
+}
+
+audio-control::part(select) {
+  height: 40px;
+  width: 200px;
+  font-size: larger;
+  background-color: #404040;
+  color: white;
+  border: none;
 }
