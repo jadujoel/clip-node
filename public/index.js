@@ -64,9 +64,15 @@ const bufferPromise = decode('lml.webm')
 
 elements.start.addEventListener('click', start, { once: true })
 
+/** @type {AudioContext} */
+let context
+
 async function start() {
-  const context = new AudioContext({ sampleRate })
-  await context.audioWorklet.addModule('./clip-processor.js')
+  if (context === undefined) {
+    context = new AudioContext({ sampleRate })
+    await context.audioWorklet.addModule('./clip-processor.js')
+    return
+  }
   const buffer = await bufferPromise
   const node = new ClipNode(context, { processorOptions: { buffer: float32ArrayFromAudioBuffer(buffer) } });
   node.connect(context.destination)
@@ -169,9 +175,7 @@ async function start() {
     console.error('node error', e)
   })
 
-  node.loop = Boolean(elements.loop.checked)
-
-  console.log('set loop', node.loop, elements.loop.checked, controls.loopStart.value, controls.loopEnd.value)
+  node.loop = elements.loop.checked
   node.loopStart = controls.loopStart.value
   node.loopEnd = controls.loopEnd.value
   node.loopCrossfade = controls.loopCrossfade.value
@@ -185,7 +189,6 @@ async function start() {
   node.playbackRate.value = params.playBackRate.value
   node.detune.value = params.detune.value
   node.lowpass.value = params.lowpass.value
-  console.log('set lowpass', params.lowpass.value, node.lowpass.value)
   node.highpass.value = params.highpass.value
   node.gain.value = params.gain.value
   node.pan.value = params.pan.value
