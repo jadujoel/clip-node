@@ -251,7 +251,7 @@ export class ClipNode extends AudioWorkletNode {
      */
     set loopStart(value) {
         if (value !== this._loopStart) {
-            this._loopStart = Math.max(Math.min(value, this._loopEnd - 0.1), 0)
+            this._loopStart = value
             this.port.postMessage({ type: 'loopStart', data: this._loopStart });
         }
     }
@@ -267,8 +267,8 @@ export class ClipNode extends AudioWorkletNode {
      * @param {number} value
      */
     set loopEnd(value) {
-        if (value !== this._loopEnd && this._buffer !== undefined) {
-            this._loopEnd = Math.min(Math.max(value, this._loopStart + 0.1), this._buffer.duration)
+        if (value !== this._loopEnd) {
+            this._loopEnd = value
             this.port.postMessage({ type: 'loopEnd', data: this._loopEnd });
         }
     }

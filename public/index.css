@@ -24,14 +24,13 @@ button {
 
 input {
   height: 80px;
-  max-width: 600px;
-  min-width: 200px;
+  width: 80px;
   font-size: larger;
 }
 
 audio-control {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr 1fr;
+  grid-template-columns: 0.25fr 0.25fr 0.25fr 2fr 0.25fr 0.25fr 0.25fr;
   place-items: center;
   border: 1px solid grey;
   padding-left: 1em;
@@ -40,8 +39,7 @@ audio-control {
 
 audio-control::part(input) {
   height: 80px;
-  max-width: 600px;
-  min-width: 600px;
+  width: 100%;
 }
 
 audio-control::part(label) {

@@ -349,12 +349,12 @@ class ClipProcessor extends AudioWorkletProcessor {
             if (this.loop) {
                 // maybe go to loop start
                 if (rate > 0 && this.playhead >= loopEnd) {
-                    this.playhead = loopStart + (this.playhead - loopEnd);
+                    this.playhead = loopStart
                     this.port.postMessage({ type: 'looped', data: this.timesLooped });
                     this.timesLooped++;
                 // if reversed, maybe go to loop end
                 } else if (rate < 0 && this.playhead < loopStart) {
-                    this.playhead = loopEnd + (this.playhead - loopStart);
+                    this.playhead = loopEnd
                     this.port.postMessage({ type: 'looped', data: this.timesLooped });
                     this.timesLooped++;
                 }

@@ -7,40 +7,126 @@ export class AudioControl extends HTMLElement {
     this.attachShadow({ mode: 'open' }); // Attach a shadow DOM tree to the custom element
     this.elements = {
       label: create('label'),
+      snapLabel: create('label'),
       snap: create('select'),
       input: create('input'),
       output: create('output'),
-    }
-    const noneSelection = create('option')
-    noneSelection.value = 'none'
-    noneSelection.textContent = 'None'
-    const barSelection = create('option')
-    barSelection.value = 'bar'
-    barSelection.textContent = 'Bar'
-    const beatSelection = create('option')
-    beatSelection.value = 'beat'
-    beatSelection.textContent = 'Beat'
-    const eighthSelection = create('option')
-    eighthSelection.value = '8th'
-    eighthSelection.textContent = '8th'
-    const sixteenthSelection = create('option')
-    sixteenthSelection.value = '16th'
-    sixteenthSelection.textContent = '16th'
-    this.elements.snap.append(noneSelection, beatSelection, barSelection, eighthSelection, sixteenthSelection)
-
-    this.snap = this.getAttribute('snap') ?? 'none'
-    /** @type {HTMLOptionElement | null} */
-    const selected = this.elements.snap.querySelector(`option[value="${this.snap}"]`)
-    if (selected !== null) {
-      selected.selected = true
+      unitLabel: create('label'),
+      unit: create('select')
     }
 
-    this.elements.snap.addEventListener('change', (e) => {
+    this.elements.snapLabel.textContent = 'Snap'
+    this.elements.snapLabel.setAttribute('part', 'label');
+    this.elements.unitLabel.textContent = 'Unit'
+    this.elements.unitLabel.setAttribute('Unit', 'label');
+
+    // set up snap, aka input scaling
+    {
+      const noneSelection = create('option')
+      noneSelection.value = 'none'
+      noneSelection.textContent = 'None'
+      const barSelection = create('option')
+      barSelection.value = 'bar'
+      barSelection.textContent = 'Bar'
+      const beatSelection = create('option')
+      beatSelection.value = 'beat'
+      beatSelection.textContent = 'Beat'
+      const eighthSelection = create('option')
+      eighthSelection.value = '8th'
+      eighthSelection.textContent = '8th'
+      const sixteenthSelection = create('option')
+      sixteenthSelection.value = '16th'
+      sixteenthSelection.textContent = '16th'
+
+      const linSelection = create('option')
+      linSelection.value = 'lin'
+      linSelection.textContent = 'lin'
+
+      const dbSelection = create('option')
+      dbSelection.value = 'dB'
+      dbSelection.textContent = 'dB'
+
+      const log10Selection = create('option')
+      log10Selection.value = 'log10'
+      log10Selection.textContent = 'log10'
+
+      const log2Selection = create('option')
+      log2Selection.value = 'log2'
+      log2Selection.textContent = 'log2'
+
+      const intSelection = create('option')
+      intSelection.value = 'int'
+      intSelection.textContent = 'Int'
+
+      this.elements.snap.append(
+        noneSelection,
+        beatSelection,
+        barSelection,
+        eighthSelection,
+        sixteenthSelection,
+        intSelection,
+        log10Selection,
+        log2Selection
+      )
+      this.snap = this.getAttribute('snap') ?? 'none'
+      /** @type {HTMLOptionElement | null} */
+      const selectedSnap = this.elements.snap.querySelector(`option[value="${this.snap}"]`)
+      if (selectedSnap !== null) {
+        selectedSnap.selected = true
+      }
+      this.elements.snap.addEventListener('change', (e) => {
+        // @ts-ignore
+        this.snap = e.target?.value
+        // dont bubble to parent
+        e.preventDefault()
+      })
+      this.elements.snap.setAttribute('part', 'select');
+    }
+
+    // set up unit / aka output label scaling
+
+    {
+      const linSelection = create('option')
+      linSelection.value = 'lin'
+      linSelection.textContent = 'lin'
+
+      const dbSelection = create('option')
+      dbSelection.value = 'dB'
+      dbSelection.textContent = 'dB'
+
+      const log10Selection = create('option')
+      log10Selection.value = 'log10'
+      log10Selection.textContent = 'log10'
+
+      const log2Selection = create('option')
+      log2Selection.value = 'log2'
+      log2Selection.textContent = 'log2'
+
+      this.elements.unit.append(
+        linSelection,
+        dbSelection,
+        log10Selection,
+        log2Selection
+      )
+
+      // set up unit
       // @ts-ignore
-      this.snap = e.target?.value
-    })
-    this.elements.snap.setAttribute('part', 'select');
+      this.unit = this.getAttribute('unit') ?? 'lin'
+      /** @type {HTMLOptionElement | null} */
+      const selectedUnit = this.elements.unit.querySelector(`option[value="${this.unit}"]`)
+      if (selectedUnit !== null) {
+        selectedUnit.selected = true
+      }
+      this.elements.unit.addEventListener('change', (e) => {
+        // @ts-ignore
+        this.unit = e.target?.value
+        e.preventDefault()
+      })
+      this.elements.unit.setAttribute('part', 'select');
+    }
 
+
+    // set up input
     this.tempo = Number(this.getAttribute('tempo') ?? 120)
 
     const { label, input, output } = this.elements
@@ -71,11 +157,7 @@ export class AudioControl extends HTMLElement {
      */
     const updateValue = (e) => {
       // @ts-ignore
-      const value = getSnappedValue(Number(e.target.value), this.snap, this.tempo)
-      this.setAttribute('value', value.toString())
-      const index = getClosestSnapIndex(value, this.snap, this.tempo)
-      const precise = this.snap === 'none' ? value : index
-      output.value = precise.toString()
+      this.value = e.target.value
     }
     // Add event listener to update output
     input.addEventListener('input', updateValue);
@@ -84,30 +166,20 @@ export class AudioControl extends HTMLElement {
     this.shadowRoot.append(...Object.values(this.elements))
   }
 
-  connectedCallback() {
-
-  }
-
   // /** @param value {number} */
   set value(newValue) {
     const value = getSnappedValue(Number(newValue), this.snap, this.tempo)
     const index = getClosestSnapIndex(value, this.snap, this.tempo)
-    const precise = this.snap === 'none' ? value : index
+    let precise = this.snap === 'none' ? value : index
     this.elements.input.value = value.toString()
-    this.elements.output.value = precise.toString()
+    const out = getUnitValue(Number(newValue), this.unit).toPrecision(this.precision)
+    this.elements.output.value = out
     this.setAttribute('value', value.toString())
   }
 
-  /** @param value {number} */
-  // set value(value) {
-  //   this.elements.input.value = value
-  //   this.elements.output.value = value.toPrecision(this.precision)
-  //   this.setAttribute('value', value)
+  // static get observedAttributes() {
+  //   return ['value'];
   // }
-
-  static get observedAttributes() {
-    return ['value'];
-  }
 
   /**
    * @param name {string}
@@ -179,8 +251,61 @@ export class AudioControl extends HTMLElement {
   set snap(value) {
     this.setAttribute('snap', value)
     this.elements.snap.selectedIndex = Array.from(this.elements.snap.options).findIndex((option) => option.value === value)
-    this.elements.input.value = getSnappedValue(Number(this.elements.input.value), value, this.tempo).toString()
-    this.elements.output.value = getSnappedValue(Number(this.elements.output.value), value, this.tempo).toString()
+    const snapped = getSnappedValue(Number(this.elements.input.value), value, this.tempo)
+    const min = getSnappedValue(Number(this.min), value, this.tempo).toString()
+    const max = getSnappedValue(Number(this.max), value, this.tempo).toString()
+    this.elements.input.min = min
+    this.elements.input.max = max
+    this.value = snapped
+    // this.elements.output.value = getSnappedValue(Number(this.elements.output.value), value, this.tempo).toString()
+  }
+
+  /**
+   * @param value {'lin' | 'dB'}
+   */
+  set unit(value) {
+    if (!isUnit(value)) {
+      return
+    }
+    this.setAttribute('unit', value)
+    this.elements.unit.selectedIndex = Array.from(this.elements.unit.options).findIndex((option) => option.value === value)
+    this.elements.output.value = getUnitValue(Number(this.elements.input.value), value).toPrecision(this.precision)
+  }
+
+  get unit() {
+    // @ts-ignore
+    return this.getAttribute('unit') ?? 'lin'
+  }
+}
+
+const units = [
+  'lin',
+  'dB',
+]
+
+/**
+ * @param {string} value
+ */
+function isUnit(value) {
+  return units.includes(value)
+}
+
+/**
+ * @param {number} value
+ * @param {string} unit
+ */
+function getUnitValue(value, unit) {
+  switch (unit) {
+    case 'lin':
+      return value
+    case 'log10':
+      return Math.log10(value)
+    case 'log2':
+      return Math.log2(value)
+    case 'dB':
+      return dbFromLin(value)
+    default:
+      return value
   }
 }
 
@@ -203,6 +328,8 @@ function getClosestSnapIndex(value, snap, tempo) {
     case '16th':
       const secondsPer16th = 60 / tempo / 16
       return Math.round(value / secondsPer16th)
+    case 'int':
+      return Math.round(value)
     default:
       return value
   }
@@ -232,9 +359,20 @@ function getSnappedValue(value, snap, tempo) {
       const secondsPer16th = 60 / tempo / 16
       const sixteenth = Math.round(value / secondsPer16th)
       return (sixteenth * secondsPer16th)
+    case 'int':
+      return Math.round(value)
     default:
       return value
   }
+}
+
+/**
+ * @param {number} lin
+ * @returns {number}
+ **/
+
+function dbFromLin(lin) {
+  return Math.max(20 * Math.log10(lin), -1000)
 }
 
 customElements.define('audio-control', AudioControl);

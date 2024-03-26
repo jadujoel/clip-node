@@ -1,60 +1,50 @@
+import { ClipNode, float32ArrayFromAudioBuffer } from './clip-node.js';
 import { AudioControl } from './audio-control.js';
-import { ClipNode } from './clip-node.js';
+
+const infos = {
+  state: getOutputElement('state'),
+  currentTime: getOutputElement('currentTime'),
+  currentFrame: getOutputElement('currentFrame'),
+  timesLooped: getOutputElement('timesLooped'),
+  latency: getOutputElement('latency'),
+}
+
+const states = {
+  start: getButtonElement('start'),
+  stop: getButtonElement('stop'),
+  pause: getButtonElement('pause'),
+  resume: getButtonElement('resume'),
+  dispose: getButtonElement('dispose'),
+}
+
+const controls = {
+  loopStart: getAudioControlElement("loopstart-control"),
+  loopEnd: getAudioControlElement("loopend-control"),
+  loopCrossfade: getAudioControlElement("loopcrossfade-control"),
+  offset: getAudioControlElement('offset-control'),
+  duration: getAudioControlElement('duration-control'),
+  playhead: getAudioControlElement('playhead-control'),
+  startDelay: getAudioControlElement('startdelay-control'),
+  stopDelay: getAudioControlElement('stopdelay-control'),
+  fadeIn: getAudioControlElement('fadein-control'),
+  fadeOut: getAudioControlElement('fadeout-control'),
+}
+
+const params = {
+  playBackRate: getAudioControlElement("playbackrate-control"),
+  detune: getAudioControlElement("detune-control"),
+  gain: getAudioControlElement('gain-control'),
+  pan: getAudioControlElement('pan-control'),
+  lowpass: getAudioControlElement('lowpass-control'),
+  highpass: getAudioControlElement('highpass-control'),
+}
 
 const elements = {
-  /** @type {HTMLOutputElement} */
-  state: document.getElementById('state'),
-  /** @type {HTMLOutputElement} */
-  load: document.getElementById('load'),
-  /** @type {HTMLOutputElement} */
-  currentTime: document.getElementById('currentTime'),
-  /** @type {HTMLOutputElement} */
-  currentFrame: document.getElementById('currentFrame'),
-  /** @type {HTMLOutputElement} */
-  timesLooped: document.getElementById('timesLooped'),
-
-  /** @type {HTMLButtonElement} */
-  start: document.getElementById("start"),
-  /** @type {HTMLButtonElement} */
-  stop: document.getElementById("stop"),
-  /** @type {HTMLButtonElement} */
-  pause: document.getElementById("pause"),
-  /** @type {HTMLButtonElement} */
-  resume: document.getElementById("resume"),
-
-  /** @type {HTMLInputElement} */
-  loop: document.getElementById("loop"),
-
-  /** @type {AudioControl} */
-  loopStart: document.getElementById("loopstart-control"),
-  /** @type {AudioControl} */
-  loopEnd: document.getElementById("loopend-control"),
-  /** @type {AudioControl} */
-  playBackRate: document.getElementById("playbackrate-control"),
-  /** @type {AudioControl} */
-  detune: document.getElementById("detune-control"),
-  /** @type {AudioControl} */
-  offset: document.getElementById('offset-control'),
-  /** @type {AudioControl} */
-  duration: document.getElementById('duration-control'),
-  /** @type {AudioControl} */
-  playhead: document.getElementById('playhead-control'),
-  /** @type {AudioControl} */
-  startDelay: document.getElementById('startdelay-control'),
-  /** @type {AudioControl} */
-  stopDelay: document.getElementById('stopdelay-control'),
-  /** @type {AudioControl} */
-  gain: document.getElementById('gain-control'),
-  /** @type {AudioControl} */
-  pan: document.getElementById('pan-control'),
-  /** @type {AudioControl} */
-  lowpass: document.getElementById('lowpass-control'),
-  /** @type {AudioControl} */
-  highpass: document.getElementById('highpass-control'),
-  /** @type {AudioControl} */
-  fadeIn: document.getElementById('fadein-control'),
-  /** @type {AudioControl} */
-  fadeOut: document.getElementById('fadeout-control'),
+  ...infos,
+  ...states,
+  loop: getInputElement("loop"),
+  ...controls,
+  ...params,
 }
 
 for (const [name, element] of Object.entries(elements)) {
@@ -63,121 +53,202 @@ for (const [name, element] of Object.entries(elements)) {
   }
 }
 
-document.addEventListener('click', start, { once: true })
+// window.addEventListener('click', start, { once: true })
+loadState()
 
 const sampleRate = 48000
 const context = new AudioContext({ sampleRate});
 const addModulePromise = context.audioWorklet.addModule('clip-processor.js');
 const bufferPromise = decode('lml.webm', context)
 
+start()
 async function start() {
+  await context.resume()
   await addModulePromise
   await context.resume()
-  const node = new ClipNode(context);
   const buffer = await bufferPromise
-
+  const node = new ClipNode(context, { processorOptions: { buffer: float32ArrayFromAudioBuffer(buffer) } });
   node.connect(context.destination)
 
-  elements.start.onclick = () => node.start(
-    context.currentTime + Number(elements.startDelay.value),
-    elements.offset.value,
-    elements.duration.value
+  // states
+  states.start.onclick = () => node.start(
+    context.currentTime + controls.startDelay.value,
+    controls.offset.value,
+    controls.duration.value
   )
+  states.stop.onclick = () => node.stop(context.currentTime + controls.stopDelay.value)
+  states.pause.onclick = () => node.pause(context.currentTime + controls.stopDelay.value)
+  states.resume.onclick = () => node.resume(context.currentTime + controls.startDelay.value)
+  states.dispose.onclick = () => node.dispose()
 
-  elements.stop.onclick = () => node.stop(context.currentTime + Number(elements.stopDelay.value))
-  elements.pause.onclick = () => node.pause(context.currentTime + Number(elements.stopDelay.value))
-  elements.resume.onclick = () => node.resume(context.currentTime + Number(elements.startDelay.value))
+  // controls
   elements.loop.addEventListener('click', () => {
     node.loop = Boolean(elements.loop.checked)
   })
-  elements.loopStart.oninput = () => {
-    node.loopStart = elements.loopStart.value
+  controls.loopStart.oninput = () => {
+    node.loopStart = controls.loopStart.value
   }
-  elements.loopEnd.oninput = () => {
-    node.loopEnd = elements.loopEnd.value
+  controls.loopEnd.oninput = () => {
+    node.loopEnd = controls.loopEnd.value
   }
-  elements.playBackRate.oninput = () => {
-    node.playbackRate.value = elements.playBackRate.value
+  // rate limit the crossfade to once every four seconds
+  controls.loopCrossfade.oninput = throttle(() => {
+    node.loopCrossfade = controls.loopCrossfade.value
+  }, 2000)
+
+  controls.offset.oninput = () => {
+    node.offset = controls.offset.value
   }
-  elements.detune.oninput = () => {
-    node.detune.value = elements.detune.value
+  controls.duration.oninput = () => {
+    node.duration = controls.duration.value
+  }
+  controls.playhead.oninput = () => {
+    node.playhead = controls.playhead.value
+  }
+  controls.fadeIn.oninput = () => {
+    node.fadeIn = controls.fadeIn.value
+  }
+  controls.fadeOut.oninput = () => {
+    node.fadeOut = controls.fadeOut.value
   }
 
-  elements.offset.oninput = () => {
-    node.offset = elements.offset.value
+  controls.offset.max = buffer.duration
+  controls.loopEnd.max = buffer.duration
+  controls.loopStart.max = buffer.duration
+  controls.fadeIn.max = buffer.duration
+  controls.fadeOut.max = buffer.duration
+  controls.playhead.max = buffer.length
+  controls.duration.value = -1
+
+  //params
+  params.playBackRate.oninput = () => {
+    node.playbackRate.value = params.playBackRate.value
+  }
+  params.detune.oninput = () => {
+    node.detune.value = params.detune.value
+  }
+  params.lowpass.oninput = () => {
+    node.lowpass.value = params.lowpass.value
+  }
+  params.highpass.oninput = () => {
+    node.highpass.value = params.highpass.value
+  }
+  params.gain.oninput = () => {
+    node.gain.value = params.gain.value
+  }
+  params.pan.oninput = () => {
+    node.pan.value = params.pan.value
   }
 
-  elements.duration.oninput = () => {
-    node.duration = elements.duration.value
+  // infos
+  infos.latency.value = context.outputLatency.toString()
+  node.onstatechange = () => {
+    infos.state.value = node.state
   }
-
-  elements.lowpass.oninput = () => {
-    node.lowpass.value = elements.lowpass.value
-  }
-
-  elements.highpass.oninput = () => {
-    node.highpass.value = elements.highpass.value
-  }
-
-  elements.gain.oninput = () => {
-    node.gain.value = elements.gain.value
-  }
-
-  elements.pan.oninput = () => {
-    node.pan.value = elements.pan.value
-  }
-
-  elements.playhead.oninput = () => {
-    node.playhead = elements.playhead.value
-  }
-
-  elements.fadeIn.oninput = () => {
-    node.fadeIn = elements.fadeIn.value
-  }
-
-  elements.fadeOut.oninput = () => {
-    node.fadeOut = elements.fadeOut.value
-  }
-
   node.onlooped = () => {
-    elements.timesLooped.value = node.timesLooped
+    infos.timesLooped.value = node.timesLooped.toString()
   }
-
   node.onframe = () => {
-    elements.playhead.value = node.playhead
-    elements.load.value = node.load
-    elements.state.value = node.state
-    elements.currentTime.value = node.currentTime.toPrecision(4)
-    elements.currentFrame.value = node.currentFrame
+    controls.playhead.value = node.playhead
+    infos.currentTime.value = node.currentTime.toPrecision(4)
+    infos.currentFrame.value = node.currentFrame.toString()
+    const timestamp = context.getOutputTimestamp()
+    infos.latency.value = `output: ${context.outputLatency} | base: ${context.baseLatency} | block: ${(context.currentTime - (timestamp.contextTime ?? 0)).toPrecision(3)}`
+  }
+  node.addEventListener('processorerror', (e) => {
+    console.error('node error', e)
+  })
+
+  node.loop = Boolean(elements.loop.checked)
+
+  console.log('set loop', node.loop, elements.loop.checked, controls.loopStart.value, controls.loopEnd.value)
+  node.loopStart = controls.loopStart.value
+  node.loopEnd = controls.loopEnd.value
+  node.loopCrossfade = controls.loopCrossfade.value
+  node.offset = controls.offset.value
+  node.duration = controls.duration.value
+  node.playhead = controls.playhead.value
+  node.fadeIn = controls.fadeIn.value
+  node.fadeOut = controls.fadeOut.value
+  node.duration = controls.duration.value
+
+  node.playbackRate.value = params.playBackRate.value
+  node.detune.value = params.detune.value
+  node.lowpass.value = params.lowpass.value
+  console.log('set lowpass', params.lowpass.value, node.lowpass.value)
+  node.highpass.value = params.highpass.value
+  node.gain.value = params.gain.value
+  node.pan.value = params.pan.value
+
+  console.log(node)
+  console.log(node.lowpass.value, params.lowpass.value)
+
+  infos.state.value = "initial"
+
+  for (const [name, value] of Object.entries(infos)) {
+    value.addEventListener('contextmenu', (ev) => {
+      ev.preventDefault()
+      console.log('context menu', name, value)
+    })
   }
 
-  elements.offset.max = buffer.duration
-  elements.loopEnd.max = buffer.duration
-  elements.loopStart.max = buffer.duration
-  elements.playhead.max = buffer.length
 
-  elements.fadeIn.max = buffer.duration
-  elements.fadeOut.max = buffer.duration
-  elements.loopEnd.value = buffer.duration
+  console.log('lowpass', node.lowpass.value, params.lowpass.value)
+  loadState()
 
-  elements.duration.value = -1
+}
 
-  elements.playBackRate.value = node.playbackRate.value
-  elements.detune.value = node.detune.value
-  elements.gain.value = node.gain.value
-  elements.pan.value = node.pan.value
-  elements.lowpass.value = node.lowpass.value
-  elements.highpass.value = node.highpass.value
+window.addEventListener('beforeunload', () => {
+  // prevent unload
+  // ev.preventDefault();
+  // ev.returnValue = '';
+  saveState()
+})
+window.addEventListener('contextmenu', () => {
+  console.log('context menu')
+})
+function saveState() {
+  /** @type {Record<string, { value: number, snap: string, tempo: number, min: number, max: number, unit: 'string'}>} */
+  let state = {}
+  for (const [name, element] of Object.entries({...controls, ...params})) {
+    state[name] = {
+      value: element.value,
+      snap: element.snap,
+      tempo: element.tempo,
+      min: element.min,
+      max: element.max,
+      // @ts-ignore
+      unit: element.unit,
+    }
+  }
+  localStorage.setItem('clip-node-state', JSON.stringify(state))
+  console.log('saved state', state)
+}
 
-  node.buffer = buffer
-  node.loop = Boolean(elements.loop.checked)
-  node.offset = elements.offset.value
-  node.duration = elements.duration.value
-  node.loopStart = elements.loopStart.value
-  node.loopEnd = elements.loopEnd.value
-  node.playbackRate.value = elements.playBackRate.value
-  node.detune.value = elements.detune.value
+function loadState() {
+  /** @type {Record<string, { value: number, snap: string, tempo: number, min: number, max: number, unit: string}>} */
+  let states = JSON.parse(localStorage.getItem('clip-node-state') ?? '{}')
+  for (const [name, {value, snap, tempo, min, max, unit}] of Object.entries(states)) {
+    /** @type {elements[keyof typeof elements] | undefined} */
+    // @ts-ignore
+    const el = elements[name]
+    if (el === undefined) {
+      continue
+    }
+    // @ts-ignore
+    el.snap = snap
+    // @ts-ignore
+    el.tempo = tempo
+    // @ts-ignore
+    el.min = min
+    // @ts-ignore
+    el.max = max
+    // @ts-ignore
+    el.unit = unit
 
+    el.value = value
+  }
+  console.log('loaded state', states)
 }
 
 /**
@@ -188,4 +259,93 @@ async function decode(url, context = new AudioContext({sampleRate: 48000})) {
   return fetch(url)
     .then(response => response.arrayBuffer())
     .then(buffer => context.decodeAudioData(buffer));
+}
+
+// Throttle function
+/**
+ * @param {() => void} callback
+ * @param {number} limit
+ */
+function throttle(callback, limit) {
+  /** @type {boolean | undefined} */
+  let inThrottle;
+  return function() {
+    const args = arguments;
+    // @ts-ignore
+    const context = this;
+    if (!inThrottle) {
+      // @ts-ignore
+      callback.apply(context, args);
+      inThrottle = true;
+      setTimeout(() => inThrottle = false, limit);
+    }
+  };
+}
+
+
+/**
+ * @param {string} id
+ * @returns {HTMLElement}
+ */
+function getEl(id) {
+  const el = document.getElementById(id)
+  if (el === null) {
+    throw new Error(`Element ${id} not found`)
+  }
+  return el
+}
+
+/**
+ * @param {string} id
+ * @returns {HTMLInputElement}
+ * @throws {Error}
+ */
+function getInputElement(id) {
+  const el = document.getElementById(id)
+  if (el?.tagName === 'INPUT') {
+    // @ts-ignore
+    return el
+  }
+  throw new Error(`Element ${id} is not an input element`)
+}
+
+/**
+ * @param {string} id
+ * @returns {HTMLOutputElement}
+ * @throws {Error}
+ */
+function getOutputElement(id) {
+  const el = document.getElementById(id)
+  if (el?.tagName === 'OUTPUT') {
+    // @ts-ignore
+    return el
+  }
+  throw new Error(`Element ${id} is not an output element`)
+}
+
+/**
+ * @param {string} id
+ * @returns {HTMLButtonElement}
+ * @throws {Error}
+ */
+function getButtonElement(id) {
+  const el = document.getElementById(id)
+  if (el?.tagName === 'BUTTON') {
+    // @ts-ignore
+    return el
+  }
+  throw new Error(`Element ${id} is not a button element`)
+}
+
+/**
+ * @param {string} id
+ * @returns {AudioControl}
+ */
+function getAudioControlElement(id) {
+  const el = document.getElementById(id)
+  if (el?.tagName === 'AUDIO-CONTROL') {
+    // @ts-ignore
+    return el
+  }
+  throw new Error(`Element ${id} is not an audio control element`)
 }
