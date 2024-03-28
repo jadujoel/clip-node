@@ -1,5 +1,6 @@
-import { ClipNode, float32ArrayFromAudioBuffer } from './clip-node.js';
-import { AudioControl } from './audio-control.js';
+import { AudioControl } from './control.js';
+import { ClipNode, float32ArrayFromAudioBuffer } from './node.js';
+import { load } from './db.js';
 
 const infos = {
   state: getOutputElement('state'),
@@ -66,7 +67,7 @@ elements.start.addEventListener('click', start, { once: true })
 
 async function start() {
   const context = new AudioContext({ sampleRate })
-  await context.audioWorklet.addModule('./clip-processor.js')
+  await context.audioWorklet.addModule('processor.js')
   const buffer = await bufferPromise
   const node = new ClipNode(context, { processorOptions: { buffer: float32ArrayFromAudioBuffer(buffer) } });
   node.connect(context.destination)
@@ -195,7 +196,6 @@ async function start() {
     })
   }
   loadState()
-
 }
 
 if (!searchParamsIncludes('disable-state')) {
@@ -251,11 +251,16 @@ function loadState() {
 /**
  * @param {string} url
  * @param {AudioContext} context
+ * @returns {Promise<AudioBuffer>}
  */
 async function decode(url, context = new AudioContext({sampleRate: 48000})) {
-  return fetch(url)
-    .then(response => response.arrayBuffer())
-    .then(buffer => context.decodeAudioData(buffer));
+  let startTime = performance.now()
+  const result = await load(url)
+  .then(buffer => {
+      return buffer ? context.decodeAudioData(buffer) : Promise.reject(`Could not load buffer from ${url}`)
+    })
+  console.log(`Decoded ${result.duration} Seconds of audio data in ${(performance.now() - startTime).toFixed(0)}ms`)
+  return result
 }
 
 // Throttle function

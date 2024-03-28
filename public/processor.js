@@ -2,7 +2,6 @@
 /// <reference path="../ClipProcessor.d.ts" />
 
 
-console.log('clip processor entry')
 /** @type {ClipProcessorStateMap} */
 const State = {
     Initial: 0,
@@ -116,7 +115,7 @@ class ClipProcessor extends AudioWorkletProcessor {
         this.port.onmessage = this.onmessage
         this.maxTimeTaken = 0
 
-        console.log('clip processor initialized', this)
+        console.log('proc initialized', this)
     }
 
     /** @type {ClipProcessorOnmessage} */
@@ -251,11 +250,6 @@ class ClipProcessor extends AudioWorkletProcessor {
         const ondone = () => {
             const timeTaken = currentTime - this.lastFrameTime
             this.lastFrameTime = currentTime
-            if (timeTaken > this.maxTimeTaken) {
-                this.maxTimeTaken = timeTaken
-                console.log('new max time', this.maxTimeTaken)
-                this.port.postMessage({ type: 'max-time-taken', data: timeTaken })
-            }
             this.port.postMessage({ type: 'frame', data: [currentTime, currentFrame, Math.floor(this.playhead), timeTaken * 1000] })
             return true
         }

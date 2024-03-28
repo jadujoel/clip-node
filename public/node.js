@@ -14,7 +14,6 @@ export class ClipNode extends AudioWorkletNode {
         numberOfOutputs,
         parameterData
     } = {}) {
-        console.log('hello from clipnode')
         super(context, 'ClipProcessor', {
             numberOfInputs,
             outputChannelCount,
@@ -25,7 +24,6 @@ export class ClipNode extends AudioWorkletNode {
             numberOfOutputs,
             parameterData,
         });
-        console.log('super from clipnode', this)
         /** @type {TypedAudioParamMap<'playbackRate' | 'detune' | 'highpass' | 'lowpass' | 'gain'  | 'pan'>} */
         // @ts-ignore
         this.parameters

@@ -1,6 +1,16 @@
-<link rel="stylesheet" href="index.css">
-<script src="audio-control.js" type="module"></script>
-<script src="index.js" type="module"></script>
+<!DOCTYPE html>
+<html lang="en"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#404040">
+<meta name="description" content="A custom Audio Worklet Node for playing audio clips.">
+<link rel="manifest" href="manifest.json">
+<title>Clip</title>
+
+<link rel="stylesheet" href="index.css" defer>
+<script src="control.js" type="module" defer></script>
+<script src="node.js" type="module" defer></script>
+<script src="index.js" type="module" defer></script>
+<script src="db.js" type="module" defer></script>
 
 <hr>
 <section id="display">
@@ -32,7 +42,7 @@
 <audio-control label="FadeIn" step=0.1 min=0 max=4 value=0 tempo=116 snap="beat"></audio-control>
 <audio-control label="FadeOut" step=0.1 min=0 max=4 value=0 tempo=116 snap="beat"></audio-control>
 
-<code>Loop</code><input type="checkbox" id="loop">
+<label for="loop">Loop</label><input type="checkbox" id="loop">
 <audio-control label="LoopStart" step=0.001 min=0 max=1 value=0 tempo=116 snap="bar"></audio-control>
 <audio-control label="LoopEnd" step=0.001 min=0 max=1 value=0 tempo=116 snap="bar"></audio-control>
 <audio-control label="LoopCrossfade" step=0.001 min=0 max=1 value=0 tempo=116 snap="8th"></audio-control>

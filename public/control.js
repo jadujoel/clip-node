@@ -1,9 +1,20 @@
 /** @type {typeof document.createElement} */
 const create = document.createElement.bind(document)
 
+function generateUniqueId() {
+  return Math.random().toString(36).substr(2, 9);
+}
+
 export class AudioControl extends HTMLElement {
   constructor() {
-    super(); // Always call super first in constructor
+    super();
+
+    // Ensure unique IDs for association
+    const uniqueId = generateUniqueId();
+    const inputId = `input-${uniqueId}`;
+    const snapId = `snap-${uniqueId}`;
+    const unitId = `unit-${uniqueId}`;
+
     const initialValue = this.getAttribute('value') ?? '0'
     this.attachShadow({ mode: 'open' }); // Attach a shadow DOM tree to the custom element
     this.elements = {
@@ -16,10 +27,16 @@ export class AudioControl extends HTMLElement {
       unit: create('select')
     }
 
-    this.elements.snapLabel.textContent = 'Snap'
-    this.elements.snapLabel.setAttribute('part', 'label');
-    this.elements.unitLabel.textContent = 'Unit'
-    this.elements.unitLabel.setAttribute('Unit', 'label');
+    this.elements.input.id = inputId
+    this.elements.label.setAttribute('for', inputId); // Associate label with input
+
+    this.elements.snapLabel.textContent = 'Snap';
+    this.elements.snapLabel.setAttribute('for', snapId); // Associate label with select
+    this.elements.snap.id = snapId; // Set ID for select
+
+    this.elements.unitLabel.textContent = 'Unit';
+    this.elements.unitLabel.setAttribute('for', unitId); // Associate label with select
+    this.elements.unit.id = unitId; // Set ID for select
 
     // set up snap, aka input scaling
     {
