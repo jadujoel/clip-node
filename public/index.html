@@ -34,10 +34,10 @@
 <hr>
 
 <section id="controls">
-<audio-control label="Playhead" step=1 min=0 max=480000 value=0></audio-control>
+<audio-control label="Playhead" step=1 min=0 max=480000 value=0 tempo=116></audio-control>
 
-<audio-control label="Offset" step=0.1 min=0 max=4 value=0 snap="bar"></audio-control>
-<audio-control label="Duration" step=0.1 min=-1 max=40 value=-1 snap="none"></audio-control>
+<audio-control label="Offset" step=0.1 min=0 max=4 value=0 tempo=116 snap="bar"></audio-control>
+<audio-control label="Duration" step=0.1 min=-1 max=40 value=-1 tempo=116 snap="none"></audio-control>
 <audio-control label="StartDelay" step=0.1 min=0 max=4 value=0 tempo=116 snap="beat"></audio-control>
 <audio-control label="StopDelay" step=0.1 min=0 max=4 value=0 tempo=116 snap="beat"></audio-control>
 <audio-control label="FadeIn" step=0.1 min=0 max=4 value=0 tempo=116 snap="beat"></audio-control>
@@ -46,7 +46,7 @@
 <label for="loop">Loop</label><input type="checkbox" id="loop">
 <audio-control label="LoopStart" step=0.001 min=0 max=1 value=0 tempo=116 snap="bar"></audio-control>
 <audio-control label="LoopEnd" step=0.001 min=0 max=1 value=0 tempo=116 snap="bar"></audio-control>
-<audio-control label="LoopCrossfade" step=0.001 min=0 max=1 value=0 tempo=116 snap="8th"></audio-control>
+<audio-control label="LoopCrossfade" step=0.001 min=0 max=4 value=0 tempo=116 snap="8th"></audio-control>
 
 <audio-control label="PlaybackRate" step=0.01 min=-4 max=4 value=1 precision="2"></audio-control>
 <audio-control label="Detune" step=100 min=-9600 max=9600 value=0 precision="2"></audio-control>

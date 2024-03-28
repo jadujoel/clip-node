@@ -1,15 +1,18 @@
 /// <reference types="bun-types" />
-import zlib from 'node:zlib';
 import { createHash } from 'node:crypto';
+import zlib from 'node:zlib';
 
 Bun.serve({
-  port: 3000,
+  port: 3002,
   async fetch(request: Request) {
     let url = new URL(request.url);
 
     // Common headers for caching
     const headers = new Headers();
-    headers.set('Cache-Control', 'public, max-age=31536000'); // Example: Cache static content for 1 year
+    // headers.set('Cache-Control', 'public, max-age=31536000');
+    // headers.set('Cache-Control', 'public, max-age=1');
+    headers.set('Cache-Control', 'no-cache'); // API responses should not be cached
+
 
     // Handle API Requests
     if (url.pathname.startsWith("/api/")) {
@@ -75,24 +78,18 @@ Bun.serve({
   }
 });
 
-console.log('Server running on http://localhost:3000');
+console.log('Server running on http://localhost:3002');
+
+const extensionMap = {
+  html: 'text/html',
+  css: 'text/css',
+  js: 'text/javascript',
+  ico: 'image/x-icon',
+  png: 'image/png',
+  webp: 'image/webp',
+  json: 'application/json',
+} as const
 
 function determineContentType(path: string): string {
-  const extension = path.split('.').pop();
-  switch (extension) {
-    case 'html':
-      return 'text/html';
-    case 'css':
-      return 'text/css';
-    case 'js':
-      return 'text/javascript';
-    case 'ico':
-      return 'image/x-icon';
-    case 'png':
-      return 'image/png';
-    case 'webp':
-      return 'image/webp';
-    default:
-      return 'application/octet-stream';
-  }
+  return extensionMap[path.split('.').pop() as keyof typeof extensionMap] ?? 'application/octet-stream';
 }

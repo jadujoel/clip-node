@@ -195,7 +195,7 @@ async function start() {
       console.log('context menu', name, value)
     })
   }
-  loadState()
+  // loadState()
 }
 
 if (!searchParamsIncludes('disable-state')) {

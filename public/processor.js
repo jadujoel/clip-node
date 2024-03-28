@@ -84,10 +84,9 @@ class ClipProcessor extends AudioWorkletProcessor {
             timesLooped = 0,
             fadeInDuration = 0,
             fadeOutDuration = 0,
-            crossfadeDuration = 0
+            crossfadeDuration = 0,
         } = processorOptions
         this.signal = buffer
-        this.original = copy(buffer)
         this.playhead = playhead;
         this.loop = loop;
         this.loopStart = loopStart
@@ -125,7 +124,6 @@ class ClipProcessor extends AudioWorkletProcessor {
         switch (type) {
             case 'buffer':
                 this.signal = data
-                this.original = copy(data, [])
             break;
             case 'start':
                 this.loopStart ??= 0
@@ -199,34 +197,9 @@ class ClipProcessor extends AudioWorkletProcessor {
             break
             case 'loopCrossfade':
                 this.crossfadeSamples = data * sampleRate
-                this.updateCrossfade()
             break
             default:
             break
-        }
-    }
-
-    updateCrossfade() {
-        if (this.crossfadeSamples <= 0 || !this.loop) {
-            copy(this.original, this.signal)
-            return
-        }
-        const loopStart = this.loopStart ?? 0
-        const loopEnd = this.loopEnd ?? this.signal[0].length
-        for (let i = 0; i < this.crossfadeSamples; ++i) {
-            for (let ch = 0; ch < this.original.length; ++ch) {
-                const fadeIn = i / this.crossfadeSamples
-                const fadeOut = 1 - fadeIn
-                this.signal[ch][loopStart + i]
-                    = this.original[ch][loopStart + i] * fadeIn
-                    + this.original[ch][loopEnd + i] * fadeOut;
-            }
-        }
-        // make sure we restore any old crossfades
-        for (let i = this.crossfadeSamples; i < this.signal[0].length; ++i) {
-            for (let ch = 0; ch < this.original.length; ++ch) {
-                this.signal[ch][i] = this.original[ch][i]
-            }
         }
     }
 
@@ -235,7 +208,6 @@ class ClipProcessor extends AudioWorkletProcessor {
         this.port.postMessage({ type: "disposed" })
         this.port.close()
         this.signal = []
-        this.original = []
     }
 
     /**
@@ -316,6 +288,7 @@ class ClipProcessor extends AudioWorkletProcessor {
         // find the indices to be used based on the playback rate and detune etc.
         const {
             indices,
+            loopFadeInIndices,
             playhead,
             ended,
             looped,
@@ -329,10 +302,24 @@ class ClipProcessor extends AudioWorkletProcessor {
             sourceLength,
             ns,
             playedSamples,
-            this.playhead
+            this.playhead,
+            this.crossfadeSamples
         )
 
         fill(output0, signal, indices)
+
+        const xfadeLength = loopFadeInIndices.length
+        if (xfadeLength > 0) {
+            for (let i = 0; i < xfadeLength; i++) {
+                const idx = loopFadeInIndices[i]
+                const remaining = loopStart - idx
+                const frac = 1 - ((remaining - i) / this.crossfadeSamples)
+                for (let ch = 0; ch < nc; ch++) {
+                    const sample = signal[ch][idx] * frac
+                    output0[ch][i] = output0[ch][i] * (1-frac) + sample
+                }
+            }
+        }
 
         const shouldFadeIn = fadeInSamples > 0 && playedSamples < fadeInSamples;
         if (shouldFadeIn) {
@@ -416,6 +403,42 @@ class ClipProcessor extends AudioWorkletProcessor {
 }
 
 /**
+ * @param {readonly Float32Array[]} original
+ * @param {number} loopStart in samples
+ * @param {number} loopFadeIn in samples
+ * @returns {Float32Array[]}
+ **/
+function createLoopFadeInBuffer(original, loopStart, loopFadeIn) {
+    const numChannels = original.length
+
+    if (loopStart <= 0) {
+        return []
+    }
+    /**
+     * @type {Float32Array[]}
+     */
+    const output = Array.from({length: numChannels})
+    const start = Math.max(loopStart - loopFadeIn, 0)
+    const numSamples = loopStart - start
+    for (let ch = 0; ch < numChannels; ch++) {
+        output[ch] = new Float32Array(numSamples)
+    }
+    const originalNumSamples = original[0].length
+    console.log('create fade in', {start, numSamples, originalNumSamples, numChannels})
+    for (let i = 0; i < numSamples; i++) {
+        const frac = i / numSamples
+        for (let ch = 0; ch < numChannels; ch++) {
+            const sample = original[ch][start + i]
+            if (isNaN(sample)) {
+                console.log('sample nan', ch, start + i, frac)
+            }
+            output[ch][i] = sample * frac
+        }
+    }
+    return output
+}
+
+/**
  * @param {Float32Array[]} target
  * @param {Float32Array[]} source
  * @param {number[]} indices
@@ -457,8 +480,10 @@ function monoToStereo(signal) {
  * @param {number} ns
  * @param {number} playedSamples
  * @param {number} playhead
+ * @param {number} loopFadeInLength
  * @returns {{
  *  indices: number[],
+ *  loopFadeInIndices: number[],
  *  playhead: number
  *  ended: boolean,
  *  looped: boolean
@@ -474,7 +499,8 @@ function getPlayIndices(
     sourceLength,
     ns,
     playedSamples,
-    playhead
+    playhead,
+    loopFadeInLength
 ) {
     let playbackRate = playbackRates[0] ?? 1.0
     let detune = detunes[0] ?? 0
@@ -482,6 +508,9 @@ function getPlayIndices(
     let looped = false
     /** @type {number[]} */
     let indices = []
+    /** @type {number[]} */
+    let loopFadeInIndices = []
+
     for (let i = 0; i < ns; ++i) {
         if (playedSamples > durationSamples) {
             ended = true
@@ -492,15 +521,20 @@ function getPlayIndices(
         detune = detunes[i] ?? detune
         const rate = playbackRate * Math.pow(2, detune / 1200);
 
-        // Update playhead position
-        playhead += rate;
-
         // Handle looping
         if (loop) {
             // maybe go to loop start
-            if (rate > 0 && playhead >= loopEnd) {
-                playhead = loopStart
-                looped = true
+            if (rate > 0) {
+                const crossfadeStart = loopEnd - loopFadeInLength
+                if (playhead >= crossfadeStart) {
+                    const relativeToLoopStart = Math.floor(playhead - loopEnd)
+                    const abs = loopStart + relativeToLoopStart
+                    loopFadeInIndices.push(abs)
+                }
+                if (playhead >= loopEnd) {
+                    playhead = loopStart
+                    looped = true
+                }
             // if reversed, maybe go to loop end
             } else if (rate < 0 && playhead < loopStart) {
                 playhead = loopEnd
@@ -517,24 +551,12 @@ function getPlayIndices(
         const index = Math.floor(playhead)
         indices.push(index)
 
-        // Apply playback rate and detune
-        // No interpolation needed at lower speeds
-        // if (rate >= -1 || rate <=1) {
-        //     for (let ch = 0; ch < nc; ++ch) {
-        //         outch[ch][i] = signal[ch][index]
-        //     }
-        // } else {
-        //     // Linear interpolation for sample output
-        //     const nextIndex = rate > 0 ? Math.min(index + 1, sourceLength - 1) : Math.max(index - 1, 0);
-        //     const frac = this.playhead - index;
-        //     for (let ch = 0; ch < nc; ++ch) {
-        //         const out = outch[ch]
-        //         out[i] = (1 - frac) * out[index] + frac * out[nextIndex];
-        //     }
-        // }
+        // Update playhead position
+        playhead += rate;
     }
     return {
         indices,
+        loopFadeInIndices,
         playhead,
         ended,
         looped
