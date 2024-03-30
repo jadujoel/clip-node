@@ -29,7 +29,7 @@ audio-control [part="input"] {
 
 audio-control [part="output"] {
   color: white;
-  width: 200px;
+  width: 50px;
 }
 
 audio-control [part="select"] {
