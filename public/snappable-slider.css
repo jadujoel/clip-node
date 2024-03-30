@@ -1,0 +1,105 @@
+snappable-slider {
+  pointer-events: fill;
+  user-select: none;
+  display: block;
+  position: relative;
+  z-index: 0;
+  width: 94%;
+  height: 120px;
+  background-color: none;
+  margin-left: 3%;
+  margin-right: 3%;
+  margin-bottom: 4px;
+  overflow: visible;
+  font-size: medium;
+}
+
+snappable-slider [part="track"] {
+  pointer-events: none;
+  position: absolute;
+  z-index: 0;
+  background-color: #202020;
+  height: 65%;
+  width: 100%;
+  box-shadow: inset rgba(0, 0, 0, 0.288) 4px 4px 4px;
+  border-color: rgb(255, 255, 255);
+  border-width: 1px;
+}
+
+snappable-slider [part="fill"] {
+  pointer-events: none;
+  position: absolute;
+  z-index: 2;
+  background-color: rgb(230, 230, 230);
+  height: 65%;
+  z-index: 0;
+  box-shadow: inset rgba(0, 0, 0, 0.288) 4px 4px 4px;
+}
+
+snappable-slider [part="thumb"] {
+  pointer-events: none;
+  position: absolute;
+  z-index: 2;
+  /* background-color: rgb(47, 47, 47); */
+  /* background-color: linear-gradient(180deg, rgb(239, 239, 239) 0%, rgba(47, 47, 47, 0.8) 0%); */
+  background: linear-gradient(to bottom right, rgba(239, 239, 239, 0.069) 0%, rgba(47, 47, 47, 0.1) 100%);
+  width: 40px;
+  height: 65%;
+  transform: translateX(-20px);
+  border-style: solid;
+  border-radius: 10%;
+  border-color: rgb(66, 66, 66);
+  border-width: 1px;
+  box-shadow: rgba(0, 0, 0, 0.288) 4px 4px 4px;
+}
+
+
+snappable-slider [part="snap"] {
+  pointer-events: none;
+  position: absolute;
+  background-color: rgba(255, 255, 255, 0.487);
+  width: 1px;
+  height: 75%;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.8;
+}
+
+snappable-slider [part="xval"] {
+  pointer-events: none;
+  position: absolute;
+  color: white;
+  width: 2em;
+  text-align: center;
+  z-index: 1;
+  opacity: 1;
+  top: 80%;
+  transform: translateX(-1em);
+}
+
+snappable-slider [part="menu"] {
+  top: 00px;
+  display: none;
+  position: absolute;
+  z-index: 1000; /* Ensure high enough to be on top */
+  background-color: #101010;
+  border: 1px solid #ccc;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+  padding: 10px 0;
+  margin: 0;
+  list-style: none;
+  color: white;
+  width: 200px;
+  overflow: visible;
+
+}
+
+snappable-slider [part="menu-item"] {
+  padding: 8px 12px;
+  cursor: pointer;
+  z-index: 1000;
+}
+
+snappable-slider [part="menu-item"]:hover{
+  background-color: #303030;
+}

@@ -98,9 +98,9 @@ async function start() {
     node.loopEnd = controls.loopEnd.value
   }
   // rate limit the crossfade to once every four seconds
-  controls.loopCrossfade.oninput = throttle(() => {
+  controls.loopCrossfade.oninput = () => {
     node.loopCrossfade = controls.loopCrossfade.value
-  }, 2000)
+  }
 
   controls.offset.oninput = () => {
     node.offset = controls.offset.value

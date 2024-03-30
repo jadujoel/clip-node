@@ -1,0 +1,41 @@
+
+audio-control {
+  display: grid;
+  /* grid-template-columns: 0.25fr 0.25fr 0.25fr 2fr 0.25fr 0.25fr 0.25fr; */
+  grid-template-columns: 0.25fr 0.25fr 2fr 0.25fr 0.25fr;
+  place-items: center;
+  border: 1px solid grey;
+  padding-left: 1em;
+  padding-right: 1em;
+  font-size: medium;
+}
+
+audio-control [part="label"] {
+  width: 100px;
+}
+
+audio-control [part="snap-label"] {
+  display: none;
+}
+
+audio-control [part="unit-label"] {
+  display: none;
+}
+
+audio-control [part="input"] {
+  height: 80px;
+  width: 100%;
+}
+
+audio-control [part="output"] {
+  color: white;
+  width: 200px;
+}
+
+audio-control [part="select"] {
+  height: 40px;
+  width: 100px;
+  background-color: #404040;
+  color: white;
+  border: none;
+}

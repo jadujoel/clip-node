@@ -1,3 +1,5 @@
+import { SnappableSlider } from "./snappable-slider.js";
+
 /** @type {typeof document.createElement} */
 const create = document.createElement.bind(document)
 
@@ -16,26 +18,34 @@ export class AudioControl extends HTMLElement {
     const unitId = `unit-${uniqueId}`;
 
     const initialValue = this.getAttribute('value') ?? '0'
-    this.attachShadow({ mode: 'open' }); // Attach a shadow DOM tree to the custom element
+    const shouldSnap = this.getAttribute('snap') !== null
+
     this.elements = {
       label: create('label'),
       snapLabel: create('label'),
       snap: create('select'),
-      input: create('input'),
+      input: new SnappableSlider({
+        value: Number(initialValue),
+        preset: this.getAttribute('preset') ?? 'none',
+        snap: shouldSnap,
+      }),
       output: create('output'),
       unitLabel: create('label'),
       unit: create('select')
     }
 
     this.elements.input.id = inputId
-    this.elements.label.setAttribute('for', inputId); // Associate label with input
 
+    this.elements.label.setAttribute('for', inputId); // Associate label with input
     this.elements.snapLabel.textContent = 'Snap';
     this.elements.snapLabel.setAttribute('for', snapId); // Associate label with select
+    this.elements.snapLabel.setAttribute('part', 'snap-label');
+
     this.elements.snap.id = snapId; // Set ID for select
 
     this.elements.unitLabel.textContent = 'Unit';
     this.elements.unitLabel.setAttribute('for', unitId); // Associate label with select
+    this.elements.unitLabel.setAttribute('part', 'unit-label');
     this.elements.unit.id = unitId; // Set ID for select
 
     // set up snap, aka input scaling
@@ -159,11 +169,18 @@ export class AudioControl extends HTMLElement {
     label.textContent = this.label
     label.setAttribute('part', 'label');
 
-    input.type = 'range'
-    input.value = initialValue
-    input.step = this.step
-    input.min = this.min.toString()
-    input.max = this.max.toString()
+    // input.type = 'range'
+    // input.value = initialValue
+    // input.step = this.step
+    // input.min = this.min.toString()
+    // input.max = this.max.toString()
+
+    input.setProps({
+      value: Number(initialValue),
+      min: this.min,
+      max: this.max,
+    })
+
     input.setAttribute('part', 'input');
 
     output.value = initialValue
@@ -173,18 +190,16 @@ export class AudioControl extends HTMLElement {
     this.setValue(Number(initialValue))
 
     /**
-     * @param {Event} e
+     * @type {(value: number) => void} number
      */
-    const updateValue = (e) => {
-      // @ts-ignore
-      this.value = e.target.value
+    const updateValue = (value) => {
+      this.value = value
+      // @ts-expect-error
+      this.oninput?.(value)
     }
     // Add event listener to update output
-    input.addEventListener('input', updateValue);
-
-    // @ts-ignore
-    this.shadowRoot.append(...Object.values(this.elements))
-
+    input.onChange = updateValue
+    this.append(...Object.values(this.elements))
   }
 
   /** @param {number} newValue */
@@ -195,17 +210,11 @@ export class AudioControl extends HTMLElement {
   /** @param {number} newValue */
   setValue(newValue) {
     const value = getSnappedValue(Number(newValue), this.snap, this.tempo)
-    const index = getClosestSnapIndex(value, this.snap, this.tempo)
-    let precise = this.snap === 'none' ? value : index
-    this.elements.input.value = value.toString()
+    this.elements.input.value = value
     const out = getUnitValue(Number(value), this.unit).toPrecision(this.precision)
     this.elements.output.value = out
     this.setAttribute('value', value.toString())
   }
-
-  // static get observedAttributes() {
-  //   return ['value'];
-  // }
 
   /**
    * @param name {string}
@@ -235,8 +244,8 @@ export class AudioControl extends HTMLElement {
 
   /** @param value {number} */
   set min(value) {
+    this.elements.input.min = value
     const str = value.toString()
-    this.elements.input.min = str
     this.setAttribute('min', str)
   }
 
@@ -246,8 +255,8 @@ export class AudioControl extends HTMLElement {
 
   /** @param value {number} */
   set max(value) {
+    this.elements.input.max = value
     const str = value.toString()
-    this.elements.input.max = str
     this.setAttribute('max', str)
   }
 
@@ -262,7 +271,6 @@ export class AudioControl extends HTMLElement {
   }
 
   set step(value) {
-    this.elements.input.step = value
     this.setAttribute('step', value)
   }
 
@@ -278,8 +286,8 @@ export class AudioControl extends HTMLElement {
     this.setAttribute('snap', value)
     this.elements.snap.selectedIndex = Array.from(this.elements.snap.options).findIndex((option) => option.value === value)
     const snapped = getSnappedValue(Number(this.elements.input.value), value, this.tempo)
-    const min = getSnappedValue(Number(this.min), value, this.tempo).toString()
-    const max = getSnappedValue(Number(this.max), value, this.tempo).toString()
+    const min = getSnappedValue(Number(this.min), value, this.tempo)
+    const max = getSnappedValue(Number(this.max), value, this.tempo)
     this.elements.input.min = min
     this.elements.input.max = max
     this.value = snapped
@@ -295,7 +303,7 @@ export class AudioControl extends HTMLElement {
     }
     this.setAttribute('unit', value)
     this.elements.unit.selectedIndex = Array.from(this.elements.unit.options).findIndex((option) => option.value === value)
-    this.elements.output.value = getUnitValue(Number(this.elements.input.value), value).toPrecision(this.precision)
+    this.elements.output.value = getUnitValue(this.elements.input.value, value).toPrecision(this.precision)
   }
 
   get unit() {

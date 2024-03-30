@@ -2,6 +2,9 @@
 import { createHash } from 'node:crypto';
 import zlib from 'node:zlib';
 
+
+const enableCache = process.argv.includes('--cache');
+
 Bun.serve({
   port: 3002,
   async fetch(request: Request) {
@@ -9,10 +12,6 @@ Bun.serve({
 
     // Common headers for caching
     const headers = new Headers();
-    // headers.set('Cache-Control', 'public, max-age=31536000');
-    // headers.set('Cache-Control', 'public, max-age=1');
-    headers.set('Cache-Control', 'no-cache'); // API responses should not be cached
-
 
     // Handle API Requests
     if (url.pathname.startsWith("/api/")) {
@@ -20,7 +19,7 @@ Bun.serve({
       const file = Bun.file(`api/${api}.ts`);
       return file.exists().then((exists) => {
         if (exists) {
-          headers.set('Cache-Control', 'no-cache'); // API responses should not be cached
+          // headers.set('Cache-Control', 'no-cache'); // API responses should not be cached
           return import(file.name!).then((mod) => mod.default(request));
         } else {
           return new Response("Not Found", { status: 404, headers });
@@ -51,7 +50,13 @@ Bun.serve({
         if (ifNoneMatch === fileHash) {
           return new Response(null, { status: 304, headers }); // Not Modified
         }
+        
         headers.set('ETag', fileHash);
+        headers.set('Content-Type', determineContentType(path));
+
+        if (enableCache) {
+          headers.set('Cache-Control', 'public, max-age=31536000');
+        }
 
         if (canGzip) {
           // Compress the content using zlib if the client accepts gzip encoding
@@ -61,14 +66,11 @@ Bun.serve({
                 reject(new Response("Internal Server Error", { status: 500 }));
               } else {
                 headers.set('Content-Encoding', 'gzip');
-                headers.set('Content-Type', determineContentType(path));
                 resolve(new Response(buffer, { headers }));
               }
             });
           });
         } else {
-          // Serve non-compressed file if gzip is not supported
-          headers.set('Content-Type', determineContentType(path));
           return new Response(fileBuffer, { headers });
         }
       } else {
