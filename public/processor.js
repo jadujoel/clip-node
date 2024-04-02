@@ -211,18 +211,21 @@ class ClipProcessor extends AudioWorkletProcessor {
     }
 
     /**
-     * @param {Float32Array[][]} inputs
+     * @param {Float32Array[][]} _inputs
      * @param {Float32Array[][]} outputs
      * @param {Record<string, Float32Array>} parameters
      */
-    process(inputs, outputs, parameters) {
+    process(_inputs, outputs, parameters) {
         if (this.state === State.Disposed) {
             return false
         }
         const ondone = () => {
             const timeTaken = currentTime - this.lastFrameTime
             this.lastFrameTime = currentTime
-            this.port.postMessage({ type: 'frame', data: [currentTime, currentFrame, Math.floor(this.playhead), timeTaken * 1000] })
+            this.port.postMessage({
+                type: 'frame',
+                data: [currentTime, currentFrame, Math.floor(this.playhead), timeTaken * 1000]
+            })
             return true
         }
         if (this.signal === undefined) {
@@ -403,42 +406,6 @@ class ClipProcessor extends AudioWorkletProcessor {
 }
 
 /**
- * @param {readonly Float32Array[]} original
- * @param {number} loopStart in samples
- * @param {number} loopFadeIn in samples
- * @returns {Float32Array[]}
- **/
-function createLoopFadeInBuffer(original, loopStart, loopFadeIn) {
-    const numChannels = original.length
-
-    if (loopStart <= 0) {
-        return []
-    }
-    /**
-     * @type {Float32Array[]}
-     */
-    const output = Array.from({length: numChannels})
-    const start = Math.max(loopStart - loopFadeIn, 0)
-    const numSamples = loopStart - start
-    for (let ch = 0; ch < numChannels; ch++) {
-        output[ch] = new Float32Array(numSamples)
-    }
-    const originalNumSamples = original[0].length
-    console.log('create fade in', {start, numSamples, originalNumSamples, numChannels})
-    for (let i = 0; i < numSamples; i++) {
-        const frac = i / numSamples
-        for (let ch = 0; ch < numChannels; ch++) {
-            const sample = original[ch][start + i]
-            if (isNaN(sample)) {
-                console.log('sample nan', ch, start + i, frac)
-            }
-            output[ch][i] = sample * frac
-        }
-    }
-    return output
-}
-
-/**
  * @param {Float32Array[]} target
  * @param {Float32Array[]} source
  * @param {number[]} indices
@@ -581,14 +548,13 @@ function copy(source, target = []) {
 }
 
 /**
- * @param {Float32Array[]} output
+ * @param {Float32Array[]} buffer
  * @returns {void}
  * */
-function fillWithSilence(output) {
-    for (let channel = 0; channel < output.length; ++channel) {
-        const outputChannel = output[channel];
-        for (let i = 0; i < outputChannel.length; ++i) {
-            outputChannel[i] = 0;
+function fillWithSilence(buffer) {
+    for (let i = 0; i < buffer.length; ++i) {
+        for (let j = 0; j < buffer[i]?.length; ++i) {
+            buffer[i][j] = 0;
         }
     }
 }

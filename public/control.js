@@ -19,16 +19,23 @@ export class AudioControl extends HTMLElement {
 
     const initialValue = this.getAttribute('value') ?? '0'
     const shouldSnap = this.getAttribute('snap') !== null
+    const input = new SnappableSlider({
+      min: Number(this.min),
+      max: Number(this.max),
+      value: Number(initialValue),
+      preset: this.getAttribute('preset') ?? 'none',
+      snap: shouldSnap,
+    })
+    const numSnaps = Number(this.getAttribute('snaps') ?? 0)
+    if (numSnaps > 0) {
+      input.generateSnaps(numSnaps)
+    }
 
     this.elements = {
       label: create('label'),
       snapLabel: create('label'),
       snap: create('select'),
-      input: new SnappableSlider({
-        value: Number(initialValue),
-        preset: this.getAttribute('preset') ?? 'none',
-        snap: shouldSnap,
-      }),
+      input,
       output: create('output'),
       unitLabel: create('label'),
       unit: create('select')
@@ -157,7 +164,7 @@ export class AudioControl extends HTMLElement {
     // set up input
     this.tempo = Number(this.getAttribute('tempo') ?? 120)
 
-    const { label, input, output } = this.elements
+    const { label, output } = this.elements
 
     // Get attributes
     let id = this.id

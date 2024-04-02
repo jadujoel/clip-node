@@ -17,6 +17,20 @@ const decibelPreset = {
   skew: 1
 }
 
+const centsPreset = {
+  snaps: [
+      -2400, -2300, -2200, -2100, -2000,
+      -1900, -1800, -1700, -1600, -1500, -1400, -1300, -1200, -1100, -1000,
+      -900, -800, -700, -600, -500, -400, -300, -200, -100, 0,
+      100, 200, 300, 400, 500, 600, 700, 800, 900, 1000,
+      1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900, 2000,
+      2100, 2200, 2300, 2400
+    ],
+  min: -2400,
+  max: 2400,
+  skew: 1,
+}
+
 let isOptionKeyHeld = false
 
 document.addEventListener('keydown', (e) => {
@@ -108,6 +122,21 @@ export class SnappableSlider extends HTMLElement {
     if (this.props.preset !== 'none') {
       this.setPreset(this.props.preset)
     }
+  }
+
+  /**
+   * @param {number} numSnaps
+   */
+  generateSnaps(numSnaps) {
+    const snaps = []
+    for (let i = 0; i < numSnaps; i++) {
+      const ratio = i / (numSnaps - 1)
+      const value = this.getValueFromRatio(ratio)
+      snaps.push(value)
+    }
+    this.setProps({
+      snaps
+    })
   }
 
   /**
@@ -357,6 +386,8 @@ export class SnappableSlider extends HTMLElement {
         return hertzPreset
       case 'decibel':
         return decibelPreset
+      case 'cents':
+        return centsPreset
       default:
         return {}
     }
