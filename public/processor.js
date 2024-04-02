@@ -272,10 +272,16 @@ class ClipProcessor extends AudioWorkletProcessor {
         const ns = Math.min(this.signal[0]?.length, output0[0]?.length)
         const loop = this.loop
         const loopStart = this.loopStart ?? 0
-        const loopEnd = this.loopEnd ?? sourceLength
+        let loopEnd = this.loopEnd ?? sourceLength
+        if (loopEnd <= loopStart + 2048) {
+            loopEnd = loopStart + 2048
+        }
+        let loopSamples = loopEnd - loopStart
         const playedSamples = this.playedSamples
-        const fadeInSamples = this.fadeInSamples
-        const fadeOutSamples = this.fadeOutSamples
+        const fadeInSamples = Math.min(this.fadeInSamples, loopSamples)
+        const fadeOutSamples = Math.min(this.fadeOutSamples, loopSamples)
+        let xfadeSamples = Math.min(this.crossfadeSamples, loopSamples)
+
         const stopWhen = this.stopWhen
         const signal = this.signal
         const state = this.state
@@ -306,7 +312,7 @@ class ClipProcessor extends AudioWorkletProcessor {
             ns,
             playedSamples,
             this.playhead,
-            this.crossfadeSamples
+            xfadeSamples
         )
 
         fill(output0, signal, indices)
@@ -316,7 +322,7 @@ class ClipProcessor extends AudioWorkletProcessor {
             for (let i = 0; i < xfadeLength; i++) {
                 const idx = loopFadeInIndices[i]
                 const remaining = loopStart - idx
-                const frac = 1 - ((remaining - i) / this.crossfadeSamples)
+                const frac = 1 - ((remaining - i) / xfadeSamples)
                 for (let ch = 0; ch < nc; ch++) {
                     const sample = signal[ch][idx] * frac
                     output0[ch][i] = output0[ch][i] * (1-frac) + sample
@@ -395,6 +401,14 @@ class ClipProcessor extends AudioWorkletProcessor {
 
         this.playedSamples += indices.length
         this.playhead = playhead
+
+        for (let i = 0; i < output0.length; i++) {
+            for (let j = 0; j < output0[i].length; j++) {
+                if (isNaN(output0[i][j])) {
+                    output0[i][j] = 0
+                }
+            }
+        }
 
         // copy result to other outputs if any
         for (let i = 1; i < outputs.length; i++) {
@@ -493,7 +507,7 @@ function getPlayIndices(
             // maybe go to loop start
             if (rate > 0) {
                 const crossfadeStart = loopEnd - loopFadeInLength
-                if (playhead >= crossfadeStart) {
+                if (loopFadeInLength > 0 && (playhead >= crossfadeStart && loopFadeInLength > 0)) {
                     const relativeToLoopStart = Math.floor(playhead - loopEnd)
                     const abs = loopStart + relativeToLoopStart
                     loopFadeInIndices.push(abs)
@@ -503,9 +517,17 @@ function getPlayIndices(
                     looped = true
                 }
             // if reversed, maybe go to loop end
-            } else if (rate < 0 && playhead < loopStart) {
-                playhead = loopEnd
-                looped = true
+            } else if (rate < 0) {
+                const crossfadeStart = loopStart + loopFadeInLength
+                if (loopFadeInLength > 0 && (playhead <= crossfadeStart && loopFadeInLength > 0)) {
+                    const relativeToLoopStart = Math.floor(playhead - loopStart)
+                    const abs = loopStart + relativeToLoopStart
+                    loopFadeInIndices.push(abs)
+                }
+                if (playhead < loopStart) {
+                    playhead = loopEnd
+                    looped = true
+                }
             }
         }
 
