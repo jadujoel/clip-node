@@ -4,7 +4,7 @@
 const create = document.createElement.bind(document)
 
 const hertzPreset = {
-  snaps: [32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16385],
+  snaps: [32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384],
   min: 32,
   max: 16384,
   skew: 0.25
