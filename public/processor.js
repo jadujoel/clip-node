@@ -1,7 +1,6 @@
 /// <reference path="../AudioWorklet.d.ts" />
 /// <reference path="../ClipProcessor.d.ts" />
 
-
 /** @type {ClipProcessorStateMap} */
 const State = {
     Initial: 0,
@@ -13,109 +12,150 @@ const State = {
     Disposed: 6
 }
 
+/**
+ * @param {ClipProcessorOptions} options
+ * @returns {Required<ClipProcessorOptions>}
+ */
+function getProperties({
+    buffer = [],
+    loopStart = 0,
+    duration = -1,
+    loopEnd = (buffer[0]?.length ?? 0) * sampleRate,
+    loop = false,
+    playhead = 0,
+    offset = 0,
+    startWhen = 0,
+    stopWhen = 0,
+    pauseWhen = 0,
+    resumeWhen = 0,
+    playedSamples = 0,
+    state = State.Initial,
+    timesLooped = 0,
+    fadeInDuration = 0,
+    fadeOutDuration = 0,
+    crossfadeDuration = 0,
+    enableCrossfade = crossfadeDuration > 0,
+    enableFadeIn = fadeInDuration > 0,
+    enableFadeOut = fadeOutDuration > 0,
+    enableHighpass = true,
+    enableLowpass = true,
+    enableGain = true,
+    enablePan = true,
+    enableDetune = true,
+    enablePlaybackRate = true,
+} = {}) {
+    return {
+        buffer,
+        loopStart,
+        duration,
+        loopEnd,
+        loop,
+        playhead,
+        offset,
+        startWhen,
+        stopWhen,
+        pauseWhen,
+        resumeWhen,
+        playedSamples,
+        state,
+        timesLooped,
+        fadeInDuration,
+        fadeOutDuration,
+        crossfadeDuration,
+        enableCrossfade,
+        enableFadeIn,
+        enableFadeOut,
+        enableHighpass,
+        enableLowpass,
+        enableGain,
+        enablePan,
+        enableDetune,
+        enablePlaybackRate,
+    }
+}
+
+    /**
+     * @param {number | undefined} offset
+     * @param {Required<ClipProcessorOptions>} properties
+     * @returns number
+     */
+function setOffset(properties, offset) {
+    if (offset === undefined) {
+        return properties.offset = 0
+    }
+    if (offset < 0) {
+        setOffset(properties, properties.buffer[0]?.length + properties.offset)
+    }
+    if (offset > properties.buffer[0]?.length - 1) {
+        setOffset(properties, properties.buffer[0]?.length % properties.offset)
+    }
+    const offs = Math.floor(offset * sampleRate)
+    properties.offset = offs
+    return offs
+}
+
 class ClipProcessor extends AudioWorkletProcessor {
     static get parameterDescriptors() {
         return [
-        {
-            name: 'playbackRate',
-            rate: 'a-rate',
-            defaultValue: 1.0,
-            minValue: -3.4028234663852886e+38,
-            maxValue: 3.4028234663852886e+38
-        },
-        {
-            name: 'detune',
-            rate: 'a-rate',
-            defaultValue: 0,
-            minValue: -3.4028234663852886e+38,
-            maxValue: 3.4028234663852886e+38
-        },
-        {
-            name: 'gain',
-            rate: 'a-rate',
-            defaultValue: 1,
-            minValue: 0,
-            maxValue: 3.4028234663852886e+38
-        },
-        {
-            name: 'pan',
-            rate: 'a-rate',
-            defaultValue: 0,
-            minValue: -3.4028234663852886e+38,
-            maxValue: 3.4028234663852886e+38
-        },
-        {
-            name: 'highpass',
-            rate: 'a-rate',
-            defaultValue: 20,
-            minValue: 20,
-            maxValue: 20000
-        },
-        {
-            name: 'lowpass',
-            rate: 'a-rate',
-            defaultValue: 20000,
-            minValue: 20,
-            maxValue: 20000
-        }
-    ]
+            {
+                name: 'playbackRate',
+                rate: 'a-rate',
+                defaultValue: 1.0,
+                minValue: -3.4028234663852886e+38,
+                maxValue: 3.4028234663852886e+38
+            },
+            {
+                name: 'detune',
+                rate: 'a-rate',
+                defaultValue: 0,
+                minValue: -3.4028234663852886e+38,
+                maxValue: 3.4028234663852886e+38
+            },
+            {
+                name: 'gain',
+                rate: 'a-rate',
+                defaultValue: 1,
+                minValue: 0,
+                maxValue: 3.4028234663852886e+38
+            },
+            {
+                name: 'pan',
+                rate: 'a-rate',
+                defaultValue: 0,
+                minValue: -3.4028234663852886e+38,
+                maxValue: 3.4028234663852886e+38
+            },
+            {
+                name: 'highpass',
+                rate: 'a-rate',
+                defaultValue: 20,
+                minValue: 20,
+                maxValue: 20000
+            },
+            {
+                name: 'lowpass',
+                rate: 'a-rate',
+                defaultValue: 20000,
+                minValue: 20,
+                maxValue: 20000
+            }
+        ]
     }
+
+    /** @type {Required<ClipProcessorOptions>} */
+    properties
+
     /**
      * @param {ClipWorkletOptions | undefined} options
      */
      constructor(options) {
         super(options);
         /** @type {ClipProcessorOptions} */
-        const processorOptions = options?.processorOptions ?? {}
-        const {
-            buffer = [],
-            loopEnd = buffer[0]?.length,
-            loop = false,
-            playhead = 0,
-            loopStart,
-            duration,
-            offset = 0,
-            startWhen = 0,
-            stopWhen = 0,
-            pauseWhen = 0,
-            resumeWhen = 0,
-            playedSamples = 0,
-            state = State.Initial,
-            timesLooped = 0,
-            fadeInDuration = 0,
-            fadeOutDuration = 0,
-            crossfadeDuration = 0,
-        } = processorOptions
-        this.signal = buffer
-        this.playhead = playhead;
-        this.loop = loop;
-        this.loopStart = loopStart
-        this.loopEnd = loopEnd
-        this.duration = duration
-        this.startWhen = startWhen;
-        this.stopWhen = stopWhen;
-        this.pauseWhen = pauseWhen;
-        this.resumeWhen = resumeWhen;
-        this.timesLooped = timesLooped;
-        this.playedSamples = playedSamples;
-        this.offset = offset;
-        this.state = state;
-        this.duration = duration
-        /** @type {number | undefined} */
-        this.durationSamples
-        this.fadeInSamples = fadeInDuration * sampleRate
-        this.fadeOutSamples = fadeOutDuration * sampleRate
-        this.crossfadeSamples = crossfadeDuration * sampleRate
-
-        this.lastFrameTime = currentTime
-
-        /** @type {number | undefined} */
-        this.remainingSamples
+        this.properties = getProperties(options?.processorOptions)
         this.port.onmessage = this.onmessage
-        this.maxTimeTaken = 0
-
         console.log('proc initialized', this)
     }
+
 
     /** @type {ClipProcessorOnmessage} */
     onmessage = ev => {
@@ -123,91 +163,106 @@ class ClipProcessor extends AudioWorkletProcessor {
         console.log('proc', type, data)
         switch (type) {
             case 'buffer':
-                this.signal = data
+                this.properties.buffer = data
             break;
             case 'start':
-                this.loopStart ??= 0
-                this.loopEnd ??= this.signal[0].length
-                this.duration = data?.duration ?? -1
-                if (this.duration === -1) {
-                    this.duration = this.loop
-                        ? this.duration = Number.MAX_SAFE_INTEGER
-                        : this.signal[0].length / sampleRate
+                this.properties.timesLooped = 0
+                this.properties.loopStart ??= 0
+                this.properties.loopEnd ??= (this.properties.buffer[0].length ?? 0) * sampleRate
+                this.properties.duration = data?.duration ?? -1
+                if (this.properties.duration === -1) {
+                    this.properties.duration = this.properties.loop
+                        ? this.properties.duration = Number.MAX_SAFE_INTEGER
+                        : this.properties.buffer[0].length / sampleRate
                 }
-                this.durationSamples = Math.min(this.duration * sampleRate, Number.MAX_SAFE_INTEGER)
-                this.offset = Math.floor((data?.offset ?? 0) * sampleRate)
-                if (this.offset < 0) {
-                    this.offset = this.signal[0].length + this.offset
-                }
-                if (this.offset > this.signal[0].length) {
-                    this.offset = this.signal[0].length % this.offset
-                }
-                this.playhead = this.offset
-                this.startWhen = data?.when ?? currentTime
-                this.stopWhen = this.startWhen + this.duration
-                this.playedSamples = 0
-                this.state = State.Scheduled
+                setOffset(this.properties, data?.offset)
+                this.properties.playhead = this.properties.offset
+                this.properties.startWhen = data?.when ?? currentTime
+                this.properties.stopWhen = this.properties.startWhen + this.properties.duration
+                this.properties.playedSamples = 0
+                // this.properties.state = State.Scheduled
+                this.properties.state = State.Scheduled
                 this.port.postMessage({ type: "scheduled" })
             break;
             case 'stop':
-                if (this.state === State.Ended || this.state === State.Initial) {
+                if (this.properties.state === State.Ended || this.properties.state === State.Initial) {
                     break;
                 }
-                this.stopWhen = data ?? this.stopWhen
-                this.state = State.Stopped
+                this.properties.stopWhen = data ?? this.properties.stopWhen
+                this.properties.state = State.Stopped
                 this.port.postMessage({ type: "stopped" })
             break;
             case 'pause':
-                this.state = State.Paused
-                this.pauseWhen = data ?? currentTime
+                this.properties.state = State.Paused
+                this.properties.pauseWhen = data ?? currentTime
                 this.port.postMessage({ type: "paused" })
             break;
             case 'resume':
-                this.state = State.Started
-                this.startWhen = data ?? currentTime
+                this.properties.state = State.Started
+                this.properties.startWhen = data ?? currentTime
                 this.port.postMessage({ type: 'resume' })
             break;
             case 'dispose':
                 this.dispose()
             break;
             case 'loop':
-                this.loop = data;
-                if (this.loop) {
-                    if (this.state === State.Scheduled || this.state === State.Started) {
-                        this.stopWhen = Number.MAX_SAFE_INTEGER
-                        this.duration = Number.MAX_SAFE_INTEGER
-                        this.durationSamples = Number.MAX_SAFE_INTEGER
+                const loop = data
+                const state = this.properties.state
+                if (loop) {
+                    if (state === State.Scheduled || state === State.Started) {
+                        this.properties.stopWhen = Number.MAX_SAFE_INTEGER
+                        this.properties.duration = Number.MAX_SAFE_INTEGER
                     }
                 }
+                this.properties.loop = loop
             break;
             case 'loopStart':
-                this.loopStart = clamper(this.signal[0], data * sampleRate);
+                this.properties.loopStart = data;
             break;
             case 'loopEnd':
-                this.loopEnd = clamper(this.signal[0], data * sampleRate);
+                this.properties.loopEnd = data;
             break;
             case 'playhead':
-                this.playhead = data;
+                this.properties.playhead = data;
             break;
             case 'fadeIn':
-                this.fadeInSamples = data * sampleRate
+                this.properties.fadeInDuration = data
             break
             case 'fadeOut':
-                this.fadeOutSamples = data * sampleRate
+                this.properties.fadeOutDuration = data * sampleRate
             break
             case 'loopCrossfade':
-                this.crossfadeSamples = data * sampleRate
+                this.properties.crossfadeDuration = data * sampleRate
             break
+            case 'toggleGain':
+                this.properties.enableGain = data ?? !this.properties.enableGain
+            break
+            case 'togglePan':
+                this.properties.enablePan = data ?? !this.properties.enablePan
+            break
+            case 'toggleLowpass':
+                this.properties.enableLowpass = data ?? !this.properties.enableLowpass
+            break
+            case 'toggleHighpass':
+                this.properties.enableHighpass = data ?? !this.properties.enableHighpass
+            break
+            case 'toggleDetune':
+                this.properties.enableDetune = data ?? !this.properties.enableDetune
+            break
+            case 'togglePlaybackRate':
+                this.properties.enablePlaybackRate = data ?? !this.properties.enablePlaybackRate
+            break
+            
             default:
             break
         }
     }
 
     dispose() {
-        this.state = State.Disposed
+        this.properties.state = State.Disposed
         this.port.postMessage({ type: "disposed" })
         this.port.close()
-        this.signal = []
+        this.properties.buffer = []
     }
 
     /**
@@ -216,75 +271,55 @@ class ClipProcessor extends AudioWorkletProcessor {
      * @param {Record<string, Float32Array>} parameters
      */
     process(_inputs, outputs, parameters) {
-        if (this.state === State.Disposed) {
+        let state = this.properties.state
+        if (this.properties.state === State.Disposed) {
             return false
         }
         const ondone = () => {
-            const timeTaken = currentTime - this.lastFrameTime
+            const timeTaken = currentTime - (this.lastFrameTime ?? 0)
             this.lastFrameTime = currentTime
             this.port.postMessage({
                 type: 'frame',
-                data: [currentTime, currentFrame, Math.floor(this.playhead), timeTaken * 1000]
+                data: [currentTime, currentFrame, Math.floor(this.properties.playhead), timeTaken * 1000]
             })
             return true
         }
-        if (this.signal === undefined) {
+        if (state === State.Initial) {
             return ondone()
         }
-        if (this.state === State.Initial) {
-            return ondone()
-        }
-        if (this.state === State.Ended) {
+        if (state === State.Ended) {
             fillWithSilence(outputs[0])
             return ondone()
         }
-        if (this.state === State.Scheduled) {
-            if (currentTime >= this.startWhen) {
-                this.state = State.Started
+        if (state === State.Scheduled) {
+            if (currentTime >= this.properties.startWhen) {
+                state = this.properties.state = State.Started
                 this.port.postMessage({ type: "started" })
             } else {
                 fillWithSilence(outputs[0])
                 return ondone()
             }
-        } else if (this.state === State.Paused) {
-            if (currentTime > this.pauseWhen) {
+        } else if (state === State.Paused) {
+            if (currentTime > this.properties.pauseWhen) {
                 fillWithSilence(outputs[0])
                 return ondone()
             }
         }
         // otherwise we are in started or stopped state
-        if (currentTime > this.stopWhen) {
+        if (currentTime > this.properties.stopWhen) {
             fillWithSilence(outputs[0])
-            this.state = State.Ended
+            state = this.properties.state = State.Ended
             this.port.postMessage({ type: "ended" })
-            this.playedSamples = 0
+            this.properties.playedSamples = 0
             return ondone()
         }
 
         const output0 = outputs[0];
-        const durationSamples = this.durationSamples ?? Number.MAX_SAFE_INTEGER
-        const sourceLength = this.signal[0].length;
+        const sourceLength = this.properties.buffer[0].length ?? 0;
         if (sourceLength === 0) {
             fillWithSilence(output0)
             return ondone()
         }
-        const nc = Math.min(this.signal.length, output0.length)
-        const ns = Math.min(this.signal[0]?.length, output0[0]?.length)
-        const loop = this.loop
-        const loopStart = this.loopStart ?? 0
-        let loopEnd = this.loopEnd ?? sourceLength
-        if (loopEnd <= loopStart + 2048) {
-            loopEnd = loopStart + 2048
-        }
-        let loopSamples = loopEnd - loopStart
-        const playedSamples = this.playedSamples
-        const fadeInSamples = Math.min(this.fadeInSamples, loopSamples)
-        const fadeOutSamples = Math.min(this.fadeOutSamples, loopSamples)
-        let xfadeSamples = Math.min(this.crossfadeSamples, loopSamples)
-
-        const stopWhen = this.stopWhen
-        const signal = this.signal
-        const state = this.state
 
         const {
             playbackRate: playbackRates,
@@ -294,128 +329,196 @@ class ClipProcessor extends AudioWorkletProcessor {
             pan: pans
         } = parameters;
 
+        const properties = this.properties
+
+        const {
+            buffer,
+            loop,
+            stopWhen,
+            playedSamples,
+            enableLowpass,
+            enableHighpass,
+            enableGain,
+            enablePan,
+            enableFadeOut,
+            enableFadeIn,
+            playhead,
+            fadeInDuration,
+            fadeOutDuration,
+            crossfadeDuration,
+            loopStart,
+            loopEnd,
+        } = properties
+
+        const nc = Math.min(buffer.length, output0.length)
+        const ns = Math.min(buffer[0]?.length ?? 0, output0[0]?.length ?? 0)
+        const durationSamples = this.properties.duration * sampleRate
+
+        // this should only be done if using loop true
+        const loopStartSamples = loopStart * sampleRate
+        let loopEndSamples = loopEnd * sampleRate
+        if (loopEndSamples <= loopStartSamples + 2048) {
+            loopEndSamples = loopStartSamples + 2048
+        }
+        let loopSamples = loopEndSamples - loopStartSamples
+        const fadeInSamples = Math.min(fadeInDuration * sampleRate, loopSamples)
+        const fadeOutSamples = Math.min(fadeOutDuration * sampleRate, loopSamples)
+        let xfadeSamples = Math.min(crossfadeDuration * sampleRate, loopSamples)
+
         // find the indices to be used based on the playback rate and detune etc.
         const {
             indices,
             loopFadeInIndices,
-            playhead,
+            playhead: updatedPlayhead,
             ended,
             looped,
         } = getPlayIndices(
             playbackRates,
             detunes,
             loop,
-            loopStart,
-            loopEnd,
+            loopStartSamples,
+            loopEndSamples,
             durationSamples,
             sourceLength,
             ns,
             playedSamples,
-            this.playhead,
+            playhead,
             xfadeSamples
         )
 
-        fill(output0, signal, indices)
+        fill(output0, buffer, indices)
 
         const xfadeLength = loopFadeInIndices.length
         if (xfadeLength > 0) {
+            console.log('xfade')
             for (let i = 0; i < xfadeLength; i++) {
                 const idx = loopFadeInIndices[i]
-                const remaining = loopStart - idx
+                const remaining = loopStartSamples - idx
                 const frac = 1 - ((remaining - i) / xfadeSamples)
                 for (let ch = 0; ch < nc; ch++) {
-                    const sample = signal[ch][idx] * frac
+                    const sample = buffer[ch][idx] * frac
                     output0[ch][i] = output0[ch][i] * (1-frac) + sample
                 }
             }
         }
 
-        const shouldFadeIn = fadeInSamples > 0 && playedSamples < fadeInSamples;
+        const shouldFadeIn = enableFadeIn && fadeInSamples > 0 && playedSamples < fadeInSamples;
         if (shouldFadeIn) {
-            const remaining = fadeInSamples - playedSamples
-            const thisblock = Math.min(ns, remaining)
-            for (let i = 0; i < thisblock; ++i) {
-                const frac = 1 - ((remaining - i) / fadeInSamples)
-                for (let ch = 0; ch < nc; ++ch) {
-                    output0[ch][i] *= frac
-                }
-            }
+            fadeIn(output0, fadeInSamples, playedSamples, ns)
         }
 
-        if (fadeOutSamples > 0) {
+        if (enableFadeOut && fadeOutSamples > 0) {
             // fadeout on stopped
             if (state === State.Stopped) {
+                console.log('fadeout')
                 const remaining = Math.floor((stopWhen - currentTime) * sampleRate)
                 const fadeSamples = Math.min(ns, remaining)
-                for (let i = 0; i < fadeSamples; ++i) {
-                    const frac = (remaining - i) / fadeOutSamples
-                    for (let ch = 0; ch < nc; ++ch) {
-                        output0[ch][i] *= frac
-                    }
-                }
-                for (let i = fadeSamples; i < ns; ++i) {
-                    for (let ch = 0; ch < nc; ++ch) {
-                        output0[ch][i] = 0
-                    }
-                }
+                fadeOut(output0, fadeSamples, remaining, fadeOutSamples, ns)
             // fadeout on started without explicitly calling stop
             } else if (playedSamples > (durationSamples - fadeOutSamples)) {
+                console.log('fadeout')
                 const remaining = durationSamples - playedSamples
                 const fadeSamples = Math.min(ns, remaining)
-                for (let i = 0; i < fadeSamples; ++i) {
-                    const frac = (remaining - i) / fadeOutSamples
-                    for (let ch = 0; ch < nc; ++ch) {
-                        output0[ch][i] *= frac
-                    }
-                }
-                // fill the rest with silence
-                for (let i = fadeSamples; i < ns; ++i) {
-                    for (let ch = 0; ch < nc; ++ch) {
-                        output0[ch][i] = 0
-                    }
-                }
+                fadeOut(output0, fadeSamples, remaining, fadeOutSamples, ns)
             }
         }
 
-        for (let channel = 0; channel < nc; ++channel) {
-            const signal = output0[channel];
-            lowpassFilter(signal, lowpass, channel)
-            highpassFilter(signal, highpass, channel)
+        if (enableLowpass) {
+            lowpassFilter(output0, lowpass)
         }
-        gainFilter(output0, gains)
+        if (enableHighpass) {
+            highpassFilter(output0, highpass)
+        }
+
+        if (enableGain) {
+            gainFilter(output0, gains)
+        }
 
         if (nc === 1) {
             monoToStereo(output0)
         }
-        panFilter(output0, pans)
+        if (enablePan) {
+            panFilter(output0, pans)
+        }
 
         if (looped) {
-            this.timesLooped++
-            this.port.postMessage({ type: "looped", data: this.timesLooped })
+            this.properties.timesLooped++
+            this.port.postMessage({ type: "looped", data: this.properties.timesLooped })
         }
 
         if (ended) {
-            this.state = State.Ended
+            state = this.properties.state = State.Ended
             this.port.postMessage({ type: "ended" })
         }
 
-        this.playedSamples += indices.length
-        this.playhead = playhead
+        this.properties.playedSamples += indices.length
+        this.properties.playhead = updatedPlayhead
 
-        for (let i = 0; i < output0.length; i++) {
-            for (let j = 0; j < output0[i].length; j++) {
-                if (isNaN(output0[i][j])) {
-                    output0[i][j] = 0
-                }
-            }
+        const numNans = checkNans(output0)
+        if (numNans > 0) {
+            console.log({numNans, indices, playhead: updatedPlayhead, ended, looped}, buffer[0].length)
+            return false
         }
 
-        // copy result to other outputs if any
         for (let i = 1; i < outputs.length; i++) {
-            const output = outputs[i]
-            copy(output0, output)
+            copy(output0, outputs[i])
         }
         return ondone()
+    }
+}
+
+/**
+ * @param {Float32Array[]} output0
+ * @returns {number} num nans
+ */
+function checkNans(output0) {
+    let numNans = 0
+    for (let i = 0; i < output0.length; i++) {
+        for (let j = 0; j < output0[i].length; j++) {
+            if (isNaN(output0[i][j])) {
+                numNans++
+                output0[i][j] = 0
+            }
+        }
+    }
+    return numNans
+}
+
+/**
+ * @param {Float32Array[]} output0
+ * @param {number} fadeInSamples
+ * @param {number} playedSamples
+ * @param {number} ns
+ */
+function fadeIn(output0, fadeInSamples, playedSamples, ns) {
+    const remaining = fadeInSamples - playedSamples
+    const thisblock = Math.min(ns, remaining)
+    for (let i = 0; i < thisblock; ++i) {
+        const frac = 1 - ((remaining - i) / fadeInSamples)
+        for (let ch = 0; ch < output0.length; ++ch) {
+            output0[ch][i] *= frac
+        }
+    }
+}
+
+/**
+ * @param {Float32Array[]} output0
+ * @param {number} fadeSamples
+ * @param {number} remaining
+ * @param {number} fadeOutSamples
+ * @param {number} ns
+ */
+function fadeOut(output0, fadeSamples, remaining, fadeOutSamples, ns) {
+    for (let i = 0; i < fadeSamples; ++i) {
+        const frac = (remaining - i) / fadeOutSamples
+        for (let ch = 0; ch < output0.length; ++ch) {
+            output0[ch][i] *= frac
+        }
+    }
+    for (let i = fadeSamples; i < ns; ++i) {
+        for (let ch = 0; ch < output0.length; ++ch) {
+            output0[ch][i] = 0
+        }
     }
 }
 
@@ -454,8 +557,8 @@ function monoToStereo(signal) {
  * @param {Float32Array} playbackRates
  * @param {Float32Array} detunes
  * @param {boolean} loop
- * @param {number} loopStart
- * @param {number} loopEnd
+ * @param {number} loopStartSamples
+ * @param {number} loopEndSamples
  * @param {number} durationSamples
  * @param {number} sourceLength
  * @param {number} ns
@@ -474,8 +577,8 @@ function getPlayIndices(
     playbackRates,
     detunes,
     loop,
-    loopStart,
-    loopEnd,
+    loopStartSamples,
+    loopEndSamples,
     durationSamples,
     sourceLength,
     ns,
@@ -494,6 +597,7 @@ function getPlayIndices(
 
     for (let i = 0; i < ns; ++i) {
         if (playedSamples > durationSamples) {
+            console.log('played samples ended')
             ended = true
             break
         }
@@ -506,38 +610,38 @@ function getPlayIndices(
         if (loop) {
             // maybe go to loop start
             if (rate > 0) {
-                const crossfadeStart = loopEnd - loopFadeInLength
+                const crossfadeStart = loopEndSamples - loopFadeInLength
                 if (loopFadeInLength > 0 && (playhead >= crossfadeStart && loopFadeInLength > 0)) {
-                    const relativeToLoopStart = Math.floor(playhead - loopEnd)
-                    const abs = loopStart + relativeToLoopStart
+                    const relativeToLoopStart = Math.floor(playhead - loopEndSamples)
+                    const abs = loopStartSamples + relativeToLoopStart
                     loopFadeInIndices.push(abs)
                 }
-                if (playhead >= loopEnd) {
-                    playhead = loopStart
+                if (playhead >= loopEndSamples) {
+                    playhead = loopStartSamples
                     looped = true
                 }
             // if reversed, maybe go to loop end
             } else if (rate < 0) {
-                const crossfadeStart = loopStart + loopFadeInLength
+                const crossfadeStart = loopStartSamples + loopFadeInLength
                 if (loopFadeInLength > 0 && (playhead <= crossfadeStart && loopFadeInLength > 0)) {
-                    const relativeToLoopStart = Math.floor(playhead - loopStart)
-                    const abs = loopStart + relativeToLoopStart
+                    const relativeToLoopStart = Math.floor(playhead - loopStartSamples)
+                    const abs = loopStartSamples + relativeToLoopStart
                     loopFadeInIndices.push(abs)
                 }
-                if (playhead < loopStart) {
-                    playhead = loopEnd
+                if (playhead < loopStartSamples) {
+                    playhead = loopEndSamples
                     looped = true
                 }
             }
-        }
-
         // Handle stopping at the buffer's ends
-        if ((rate > 0 && playhead >= sourceLength) || (rate < 0 && playhead < 0)) {
+        } else if ((rate > 0 && playhead >= sourceLength) || (rate < 0 && playhead < 0)) {
+            console.log('ended at buffer ends')
             ended = true
             break
         }
 
-        const index = Math.floor(playhead)
+        // const index = Math.floor(playhead -1)
+        const index = Math.max(Math.floor(playhead -1), 0)
         indices.push(index)
 
         // Update playhead position
@@ -605,45 +709,42 @@ function gainFilter(arr, gains) {
     }
 }
 
+
+// function calcLowpassCoefficients(cutoff, sampleRate) {
+//     // Constants for a simple lowpass filter (not specifically Butterworth)
+//     const w0 = 2 * Math.PI * cutoff / sampleRate;
+//     const alpha = Math.sin(w0) / 2;
+//     // Coefficients for a generic lowpass filter
+//     const b0 = (1 - Math.cos(w0)) / 2;
+//     const b1 = 1 - Math.cos(w0);
+//     const b2 = (1 - Math.cos(w0)) / 2;
+//     const a0 = 1 + alpha;
+//     const a1 = -2 * Math.cos(w0);
+//     const a2 = 1 - alpha;
+//     const x = arr[i]; // Current sample
+//     // IIR filter equation
+//     const y = (b0/a0)*x + (b1/a0)*x_1 + (b2/a0)*x_2 - (a1/a0)*y_1 - (a2/a0)*y_2;
+//     // Update states
+//     x_2 = x_1;
+//     x_1 = x;
+//     y_2 = y_1;
+//     y_1 = y;
+// }
+
 // Pre-filtering state
 /** @type {{x_1: number, x_2: number, y_1: number, y_2: number}[]} */
-const lowpassStates = [];
+const lowpassStates = [{ x_1: 0, x_2: 0, y_1: 0, y_2: 0 }, { x_1: 0, x_2: 0, y_1: 0, y_2: 0 }];
 /**
- * @param {Float32Array} arr
+ * @param {Float32Array[]} buffer
  * @param {Float32Array} cutoffs
- * @param {number} channel
  */
-function lowpassFilter(arr, cutoffs, channel) {
-    let { x_1, x_2, y_1, y_2 } = lowpassStates[channel] ?? { x_1: 0, x_2: 0, y_1: 0, y_2: 0 }
-    if (cutoffs.length === 1) {
-        const cutoff = cutoffs[0];
-        if (cutoff >= 20000) return;
-        // Constants for a simple lowpass filter (not specifically Butterworth)
-        const w0 = 2 * Math.PI * cutoff / sampleRate;
-        const alpha = Math.sin(w0) / 2;
-        // Coefficients for a generic lowpass filter
-        const b0 = (1 - Math.cos(w0)) / 2;
-        const b1 = 1 - Math.cos(w0);
-        const b2 = (1 - Math.cos(w0)) / 2;
-        const a0 = 1 + alpha;
-        const a1 = -2 * Math.cos(w0);
-        const a2 = 1 - alpha;
-        for (let i = 0; i < arr.length; i++) {
-            const x = arr[i]; // Current sample
-            // IIR filter equation
-            const y = (b0/a0)*x + (b1/a0)*x_1 + (b2/a0)*x_2 - (a1/a0)*y_1 - (a2/a0)*y_2;
-            // Update states
-            x_2 = x_1;
-            x_1 = x;
-            y_2 = y_1;
-            y_1 = y;
-            // Store output
-            arr[i] = y;
-        }
-    } else {
-        let prevCutoff = cutoffs[0];
-        for (let i = 0; i < arr.length; i++) {
-            const cutoff = cutoffs[i] ?? prevCutoff;
+function lowpassFilter(buffer, cutoffs) {
+    for (let channel = 0; channel < buffer.length; channel++) {
+        const arr = buffer[channel];
+        let { x_1, x_2, y_1, y_2 } = lowpassStates[channel] ?? { x_1: 0, x_2: 0, y_1: 0, y_2: 0 }
+        if (cutoffs.length === 1) {
+            const cutoff = cutoffs[0];
+            if (cutoff >= 20000) return;
             // Constants for a simple lowpass filter (not specifically Butterworth)
             const w0 = 2 * Math.PI * cutoff / sampleRate;
             const alpha = Math.sin(w0) / 2;
@@ -654,66 +755,74 @@ function lowpassFilter(arr, cutoffs, channel) {
             const a0 = 1 + alpha;
             const a1 = -2 * Math.cos(w0);
             const a2 = 1 - alpha;
-            const x = arr[i]; // Current sample
-            // IIR filter equation
-            const y = (b0/a0)*x + (b1/a0)*x_1 + (b2/a0)*x_2 - (a1/a0)*y_1 - (a2/a0)*y_2;
-            // Update states
-            x_2 = x_1;
-            x_1 = x;
-            y_2 = y_1;
-            y_1 = y;
-            // Store output
-            arr[i] = y;
+
+            const h0 = b0/a0;
+            const h1 = b1/a0;
+            const h2 = b2/a0;
+            const h3 = a1/a0;
+            const h4 = a2/a0;
+
+            for (let i = 0; i < arr.length; i++) {
+                const x = arr[i]; // Current sample
+                // IIR filter equation
+                const y = h0*x + h1*x_1 + h2*x_2 - h3*y_1 - h4*y_2;
+                // Update states
+                x_2 = x_1;
+                x_1 = x;
+                y_2 = y_1;
+                y_1 = y;
+                // Store output
+                arr[i] = y;
+            }
+        } else {
+            let prevCutoff = cutoffs[0];
+            for (let i = 0; i < arr.length; i++) {
+                const cutoff = cutoffs[i] ?? prevCutoff;
+                // Constants for a simple lowpass filter (not specifically Butterworth)
+                const w0 = 2 * Math.PI * cutoff / sampleRate;
+                const alpha = Math.sin(w0) / 2;
+                // Coefficients for a generic lowpass filter
+                const b0 = (1 - Math.cos(w0)) / 2;
+                const b1 = 1 - Math.cos(w0);
+                const b2 = (1 - Math.cos(w0)) / 2;
+                const a0 = 1 + alpha;
+                const a1 = -2 * Math.cos(w0);
+                const a2 = 1 - alpha;
+                const x = arr[i]; // Current sample
+                // IIR filter equation
+                const y = (b0/a0)*x + (b1/a0)*x_1 + (b2/a0)*x_2 - (a1/a0)*y_1 - (a2/a0)*y_2;
+                // Update states
+                x_2 = x_1;
+                x_1 = x;
+                y_2 = y_1;
+                y_1 = y;
+                // Store output
+                arr[i] = y;
+            }
         }
+        lowpassStates[channel] = {
+            x_1,
+            x_2,
+            y_1,
+            y_2
+        };
     }
-    lowpassStates[channel] = {
-        x_1,
-        x_2,
-        y_1,
-        y_2
-    };
-    return arr
 }
 
 // Pre-filtering state for highpass
 /** @type {{x_1: number, x_2: number, y_1: number, y_2: number}[]} */
-const highpassStates = [];
+const highpassStates = [{ x_1: 0, x_2: 0, y_1: 0, y_2: 0 }, { x_1: 0, x_2: 0, y_1: 0, y_2: 0 }];
 /**
- * @param {Float32Array} arr
+ * @param {Float32Array[]} buffer
  * @param {Float32Array} cutoffs
- * @param {number} channel
  */
-function highpassFilter(arr, cutoffs, channel) {
-    let { x_1, x_2, y_1, y_2 } = highpassStates[channel] ?? { x_1: 0, x_2: 0, y_1: 0, y_2: 0 }
-    if (cutoffs.length === 1) {
-        const cutoff = cutoffs[0];
-        if (cutoff <= 20) return;
-        // Constants for a simple highpass filter (not specifically Butterworth)
-        const w0 = 2 * Math.PI * cutoff / sampleRate;
-        const alpha = Math.sin(w0) / 2;
-        // Coefficients for a generic highpass filter
-        const b0 = (1 + Math.cos(w0)) / 2;
-        const b1 = -(1 + Math.cos(w0));
-        const b2 = (1 + Math.cos(w0)) / 2;
-        const a0 = 1 + alpha;
-        const a1 = -2 * Math.cos(w0);
-        const a2 = 1 - alpha;
-        for (let i = 0; i < arr.length; i++) {
-            const x = arr[i]; // Current sample
-            // IIR filter equation
-            const y = (b0/a0)*x + (b1/a0)*x_1 + (b2/a0)*x_2 - (a1/a0)*y_1 - (a2/a0)*y_2;
-            // Update states
-            x_2 = x_1;
-            x_1 = x;
-            y_2 = y_1;
-            y_1 = y;
-            // Store output
-            arr[i] = y;
-        }
-    } else {
-        let prevCutoff = cutoffs[0];
-        for (let i = 0; i < arr.length; i++) {
-            const cutoff = cutoffs[i] ?? prevCutoff;
+function highpassFilter(buffer, cutoffs) {
+    for (let channel = 0; channel < buffer.length; channel++) {
+        const arr = buffer[channel];
+        let { x_1, x_2, y_1, y_2 } = highpassStates[channel] ?? { x_1: 0, x_2: 0, y_1: 0, y_2: 0 }
+        if (cutoffs.length === 1) {
+            const cutoff = cutoffs[0];
+            if (cutoff <= 20) return;
             // Constants for a simple highpass filter (not specifically Butterworth)
             const w0 = 2 * Math.PI * cutoff / sampleRate;
             const alpha = Math.sin(w0) / 2;
@@ -724,25 +833,51 @@ function highpassFilter(arr, cutoffs, channel) {
             const a0 = 1 + alpha;
             const a1 = -2 * Math.cos(w0);
             const a2 = 1 - alpha;
-            const x = arr[i]; // Current sample
-            // IIR filter equation
-            const y = (b0/a0)*x + (b1/a0)*x_1 + (b2/a0)*x_2 - (a1/a0)*y_1 - (a2/a0)*y_2;
-            // Update states
-            x_2 = x_1;
-            x_1 = x;
-            y_2 = y_1;
-            y_1 = y;
-            // Store output
-            arr[i] = y;
+            for (let i = 0; i < arr.length; i++) {
+                const x = arr[i]; // Current sample
+                // IIR filter equation
+                const y = (b0/a0)*x + (b1/a0)*x_1 + (b2/a0)*x_2 - (a1/a0)*y_1 - (a2/a0)*y_2;
+                // Update states
+                x_2 = x_1;
+                x_1 = x;
+                y_2 = y_1;
+                y_1 = y;
+                // Store output
+                arr[i] = y;
+            }
+        } else {
+            let prevCutoff = cutoffs[0];
+            for (let i = 0; i < arr.length; i++) {
+                const cutoff = cutoffs[i] ?? prevCutoff;
+                // Constants for a simple highpass filter (not specifically Butterworth)
+                const w0 = 2 * Math.PI * cutoff / sampleRate;
+                const alpha = Math.sin(w0) / 2;
+                // Coefficients for a generic highpass filter
+                const b0 = (1 + Math.cos(w0)) / 2;
+                const b1 = -(1 + Math.cos(w0));
+                const b2 = (1 + Math.cos(w0)) / 2;
+                const a0 = 1 + alpha;
+                const a1 = -2 * Math.cos(w0);
+                const a2 = 1 - alpha;
+                const x = arr[i]; // Current sample
+                // IIR filter equation
+                const y = (b0/a0)*x + (b1/a0)*x_1 + (b2/a0)*x_2 - (a1/a0)*y_1 - (a2/a0)*y_2;
+                // Update states
+                x_2 = x_1;
+                x_1 = x;
+                y_2 = y_1;
+                y_1 = y;
+                // Store output
+                arr[i] = y;
+            }
         }
+        highpassStates[channel] = {
+            x_1,
+            x_2,
+            y_1,
+            y_2
+        };
     }
-    highpassStates[channel] = {
-        x_1,
-        x_2,
-        y_1,
-        y_2
-    };
-    return arr
 }
 
 /**

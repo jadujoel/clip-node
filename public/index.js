@@ -1,6 +1,6 @@
 import { AudioControl } from './control.js';
-import { ClipNode, float32ArrayFromAudioBuffer } from './node.js';
 import { load } from './db.js';
+import { ClipNode, float32ArrayFromAudioBuffer } from './node.js';
 
 const infos = {
   state: getOutputElement('state'),
@@ -91,6 +91,7 @@ async function start() {
   elements.loop.addEventListener('click', () => {
     node.loop = Boolean(elements.loop.checked)
   })
+
   controls.loopStart.oninput = () => {
     node.loopStart = controls.loopStart.value
   }
@@ -140,10 +141,38 @@ async function start() {
     node.highpass.value = params.highpass.value
   }
   params.gain.oninput = () => {
-    node.gain.value = params.gain.value
+    node.gain.value = params.gain.transformed('dB')
   }
   params.pan.oninput = () => {
     node.pan.value = params.pan.value
+  }
+
+  params.gain.onenable = (bool) => {
+    node.toggleGain(bool)
+  }
+  params.playBackRate.onenable = (bool) => {
+    node.togglePlaybackRate(bool)
+  }
+  params.detune.onenable = (bool) => {
+    node.toggleDetune(bool)
+  }
+  params.lowpass.onenable = (bool) => {
+    node.toggleLowpass(bool)
+  }
+  params.highpass.onenable = (bool) => {
+    node.toggleHighpass(bool)
+  }
+  params.pan.onenable = (bool) => {
+    node.togglePan(bool)
+  }
+  controls.fadeIn.onenable = (bool) => {
+    node.toggleFadeIn(bool)
+  }
+  controls.fadeOut.onenable = (bool) => {
+    node.toggleFadeOut(bool)
+  }
+  controls.loopCrossfade.onenable = (bool) => {
+    node.toggleLoopCrossfade(bool)
   }
 
   // infos
@@ -185,7 +214,7 @@ async function start() {
   node.detune.value = params.detune.value
   node.lowpass.value = params.lowpass.value
   node.highpass.value = params.highpass.value
-  node.gain.value = params.gain.value
+  node.gain.value = params.gain.transformed('dB', 'lin')
   node.pan.value = params.pan.value
   infos.state.value = "initial"
 
@@ -196,6 +225,7 @@ async function start() {
     })
   }
   // loadState()
+  load('lml.webm')
 }
 
 if (!searchParamsIncludes('disable-state')) {
@@ -261,40 +291,6 @@ async function decode(url, context = new AudioContext({sampleRate: 48000})) {
     })
   console.log(`Decoded ${result.duration} Seconds of audio data in ${(performance.now() - startTime).toFixed(0)}ms`)
   return result
-}
-
-// Throttle function
-/**
- * @param {() => void} callback
- * @param {number} limit
- */
-function throttle(callback, limit) {
-  /** @type {boolean | undefined} */
-  let inThrottle;
-  return function() {
-    const args = arguments;
-    // @ts-ignore
-    const context = this;
-    if (!inThrottle) {
-      // @ts-ignore
-      callback.apply(context, args);
-      inThrottle = true;
-      setTimeout(() => inThrottle = false, limit);
-    }
-  };
-}
-
-
-/**
- * @param {string} id
- * @returns {HTMLElement}
- */
-function getEl(id) {
-  const el = document.getElementById(id)
-  if (el === null) {
-    throw new Error(`Element ${id} not found`)
-  }
-  return el
 }
 
 /**

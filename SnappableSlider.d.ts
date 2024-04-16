@@ -38,5 +38,7 @@ declare interface SnappableSliderProperties {
   // readonly children?: readonly HTMLElement[],
 }
 
+type Transform = 'lin' | 'dB'
+
 type Writeable<T> = { -readonly [P in keyof T]: T[P] };
 declare type SnappableSliderState = Writeable<Required<SnappableSliderProperties>>;

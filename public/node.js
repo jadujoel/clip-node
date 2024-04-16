@@ -180,6 +180,42 @@ export class ClipNode extends AudioWorkletNode {
         }
     }
 
+    toggleGain(value = true) {
+        this.port.postMessage({ type: 'toggleGain', data: value })
+    }
+
+    togglePlaybackRate(value = true) {
+        this.port.postMessage({ type: 'togglePlaybackRate', data: value })
+    }
+
+    toggleDetune(value = true) {
+        this.port.postMessage({ type: 'toggleDetune', data: value })
+    }
+
+    togglePan(value = true) {
+        this.port.postMessage({ type: 'togglePan', data: value })
+    }
+
+    toggleHighpass(value = true) {
+        this.port.postMessage({ type: 'toggleHighpass', data: value })
+    }
+
+    toggleLowpass(value = true) {
+        this.port.postMessage({ type: 'toggleLowpass', data: value })
+    }
+
+    toggleFadeIn(value = true) {
+        this.port.postMessage({ type: 'toggleFadeIn', data: value })
+    }
+
+    toggleFadeOut(value = true) {
+        this.port.postMessage({ type: 'toggleFadeOut', data: value })
+    }
+
+    toggleLoopCrossfade(value = true) {
+        this.port.postMessage({ type: 'toggleLoopCrossfade', data: value })
+    }
+
     /** @returns {AudioBuffer | undefined} */
     get buffer() {
         return this._buffer;

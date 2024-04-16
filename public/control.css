@@ -2,7 +2,7 @@
 audio-control {
   display: grid;
   /* grid-template-columns: 0.25fr 0.25fr 0.25fr 2fr 0.25fr 0.25fr 0.25fr; */
-  grid-template-columns: 0.25fr 0.25fr 2fr 0.25fr 0.25fr;
+  grid-template-columns: 0.25fr 0.25fr 0.25fr 2fr 0.25fr 0.25fr;
   place-items: center;
   border: 1px solid grey;
   padding-left: 1em;
@@ -12,6 +12,11 @@ audio-control {
 
 audio-control [part="label"] {
   width: 100px;
+}
+
+audio-control [part="toggle"] {
+  width: 60px;
+  height: 60px;
 }
 
 audio-control [part="snap-label"] {
@@ -38,4 +43,9 @@ audio-control [part="select"] {
   background-color: #404040;
   color: white;
   border: none;
+}
+
+#loop {
+  height: 40px;
+  width: 100px;
 }

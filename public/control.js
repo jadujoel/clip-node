@@ -32,6 +32,7 @@ export class AudioControl extends HTMLElement {
     }
 
     this.elements = {
+      toggle: create('input'),
       label: create('label'),
       snapLabel: create('label'),
       snap: create('select'),
@@ -39,6 +40,18 @@ export class AudioControl extends HTMLElement {
       output: create('output'),
       unitLabel: create('label'),
       unit: create('select')
+    }
+
+    this.elements.toggle.type = 'checkbox'
+    this.elements.toggle.id = `toggle-${uniqueId}`
+    this.elements.toggle.setAttribute('part', 'toggle')
+
+    this.elements.toggle.checked = true
+    this.elements.toggle.onclick =  () => {
+      console.log('toggle', this.elements.toggle.checked)
+      if (this.onenable) {
+        this.onenable(this.elements.toggle.checked)
+      }
     }
 
     this.elements.input.id = inputId
@@ -216,12 +229,26 @@ export class AudioControl extends HTMLElement {
 
   /** @param {number} newValue */
   setValue(newValue) {
-    const value = getSnappedValue(Number(newValue), this.snap, this.tempo)
-    this.elements.input.value = value
-    const out = getUnitValue(Number(value), this.unit).toPrecision(this.precision)
-    this.elements.output.value = out
-    this.setAttribute('value', value.toString())
+    const snapped = getSnappedValue(Number(newValue), this.snap, this.tempo)
+    this.elements.input.value = snapped
+    const str = snapped.toPrecision(this.precision).toString()
+    this.elements.output.value = str
+    this.setAttribute('value', str)
   }
+
+  /** @type {((enabled: boolean) => void) | undefined} */
+  onenable
+
+  // /**
+  //  * @param {boolean} value
+  //  */
+  // set enabled(value) {
+  //   this.elements.toggle.checked = value
+  // }
+
+  // get enabled() {
+  //   return this.elements.toggle.checked
+  // }
 
   /**
    * @param name {string}
@@ -241,8 +268,45 @@ export class AudioControl extends HTMLElement {
     return Number(this.getAttribute('precision') ?? 5)
   }
 
+  /**
+   * @param {number} value
+   * @returns {number}
+   */
+  transform(value) {
+    const t = this.getAttribute('transform')
+    if (t === null) {
+      return value
+    }
+    switch (t) {
+      case 'dB': {
+        return linFromDb(value)
+      } default: {
+        return value
+      }
+    }
+  }
+
+  /**
+   * @param {Transform} from
+   * @param {Transform} to
+   * @returns {number}
+   * */
+  transformed(from, to = 'lin') {
+    const value = this.value
+    switch (to) {
+      case 'lin': {
+        switch (from) {
+          case 'dB': {
+            return linFromDb(value)
+          }
+        }
+      }
+    }
+    return value
+  }
+
   get value() {
-    return Number(this.getAttribute('value') ?? 0)
+    return this.elements.input.value
   }
 
   get min() {
@@ -414,6 +478,14 @@ function getSnappedValue(value, snap, tempo) {
 
 function dbFromLin(lin) {
   return Math.max(20 * Math.log10(lin), -1000)
+}
+
+/**
+ * @param {number} db
+ * @returns {number}
+ */
+function linFromDb(db) {
+  return Math.pow(10, db / 20)
 }
 
 customElements.define('audio-control', AudioControl);

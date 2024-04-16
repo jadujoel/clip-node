@@ -17,23 +17,32 @@ interface ClipWorkletOptions extends AudioWorkletNodeOptions {
 }
 
 interface ClipProcessorOptions {
-  readonly buffer?: Float32Array[],
-  readonly loop?: boolean,
-  readonly loopStart?: number,
-  readonly loopEnd?: number,
-  readonly offset?: number,
-  readonly duration?: number,
-  readonly playhead?: number,
-  readonly state?: ClipProcessorState
-  readonly startWhen?: number
-  readonly stopWhen?: number
-  readonly pauseWhen?: number
-  readonly resumeWhen?: number
-  readonly playedSamples?: number
-  readonly timesLooped?: number
-  readonly fadeInDuration?: number
-  readonly fadeOutDuration?: number
-  readonly crossfadeDuration?: number
+  buffer?: Float32Array[],
+  loop?: boolean,
+  loopStart?: number,
+  loopEnd?: number,
+  offset?: number,
+  duration?: number,
+  playhead?: number,
+  state?: ClipProcessorState
+  startWhen?: number
+  stopWhen?: number
+  pauseWhen?: number
+  resumeWhen?: number
+  playedSamples?: number
+  timesLooped?: number
+  fadeInDuration?: number
+  fadeOutDuration?: number
+  crossfadeDuration?: number
+  enableFadeIn?: boolean
+  enableFadeOut?: boolean
+  enableCrossfade?: boolean
+  enableGain?: boolean
+  enablePan?: boolean
+  enableHighpass?: boolean
+  enableLowpass?: boolean
+  enableDetune?: boolean
+  enablePlaybackRate?: boolean
 }
 
 type ClipProcessorMessageRx
@@ -50,6 +59,7 @@ type ClipProcessorMessageRx
   | ClipProcessorFadeInMessageRx
   | ClipProcessorFadeOutMessageRx
   | ClipProcessorLoopCrossfadeMessageRx
+  | ClipProcessorToggleMessageRx
 
 type ClipProcessorMessageType
   = 'buffer'
@@ -67,6 +77,23 @@ type ClipProcessorMessageType
   | 'fadeIn'
   | 'fadeOut'
   | 'loopCrossfade'
+  | ClipProcessorToggleMessageType
+
+type ClipProcessorToggleMessageType =
+  'toggleFadeIn'
+  | 'toggleFadeOut'
+  | 'toggleCrossfade'
+  | 'toggleGain'
+  | 'togglePan'
+  | 'toggleHighpass'
+  | 'toggleLowpass'
+  | 'toggleDetune'
+  | 'togglePlaybackRate'
+
+interface ClipProcessorToggleMessageRx {
+  readonly type: ClipProcessorToggleMessageType
+  readonly data?: boolean
+}
 
 interface ClipProcessorBufferMessageRx {
   readonly type: 'buffer',

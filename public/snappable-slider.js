@@ -3,6 +3,7 @@
 /** @type {typeof document.createElement} */
 const create = document.createElement.bind(document)
 
+/** @type {SnappableSliderProperties} */
 const hertzPreset = {
   snaps: [32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384],
   min: 32,
@@ -10,6 +11,7 @@ const hertzPreset = {
   skew: 0.25
 }
 
+/** @type {SnappableSliderProperties} */
 const decibelPreset = {
   snaps: [-60, -48, -36, -24, -12, -6, -3, 0],
   min: -60,
@@ -17,6 +19,7 @@ const decibelPreset = {
   skew: 1
 }
 
+/** @type {SnappableSliderProperties} */
 const centsPreset = {
   snaps: [
       -2400, -2300, -2200, -2100, -2000,
@@ -29,6 +32,27 @@ const centsPreset = {
   min: -2400,
   max: 2400,
   skew: 1,
+}
+
+/** @type {SnappableSliderProperties} */
+const playbackRatePreset = {
+  snaps: [
+    -4, -3, -2, -1.5, -1.25, -1, -0.75, -0.5, -0.25, 0,
+    0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4
+  ],
+  min: -4,
+  max: 4,
+  skew: 1
+}
+
+/** @type {SnappableSliderProperties} */
+const gainPreset = {
+  snaps: [
+    -60, -50, -40, -30, -27, -24, -21, -18, -15, -12, -9, -8, -7, -6, -5, -4, -3, -2, -1, 0,
+  ],
+  min: -100,
+  max: 0,
+  skew: 6,
 }
 
 let isOptionKeyHeld = false
@@ -226,9 +250,9 @@ export class SnappableSlider extends HTMLElement {
   }
 
   /**
-   * @param {number} value
+   * @type {undefined | ((value: number) => void)} value
    */
-  onChange = (value) => {}
+  onChange
 
   /**
    * @param {MouseEvent | TouchEvent} e
@@ -243,7 +267,9 @@ export class SnappableSlider extends HTMLElement {
     this.props.value = snapped
     this.setAttribute('value', snapped.toString())
     this.renderRatio(this.getRatioFromValue(snapped))
-    this.onChange(snapped)
+    if (this.onChange !== undefined) {
+      this.onChange(snapped)
+    }
   }
 
   /**
@@ -388,6 +414,10 @@ export class SnappableSlider extends HTMLElement {
         return decibelPreset
       case 'cents':
         return centsPreset
+      case 'playbackRate':
+        return playbackRatePreset
+      case 'gain':
+        return gainPreset
       default:
         return {}
     }
