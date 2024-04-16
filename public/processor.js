@@ -229,10 +229,10 @@ class ClipProcessor extends AudioWorkletProcessor {
                 this.properties.fadeInDuration = data
             break
             case 'fadeOut':
-                this.properties.fadeOutDuration = data * sampleRate
+                this.properties.fadeOutDuration = data
             break
             case 'loopCrossfade':
-                this.properties.crossfadeDuration = data * sampleRate
+                this.properties.crossfadeDuration = data
             break
             case 'toggleGain':
                 this.properties.enableGain = data ?? !this.properties.enableGain
@@ -252,7 +252,9 @@ class ClipProcessor extends AudioWorkletProcessor {
             case 'togglePlaybackRate':
                 this.properties.enablePlaybackRate = data ?? !this.properties.enablePlaybackRate
             break
-            
+            case 'logState':
+                console.log(this.properties)
+            break
             default:
             break
         }

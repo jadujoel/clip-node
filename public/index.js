@@ -17,6 +17,7 @@ const states = {
   pause: getButtonElement('pause'),
   resume: getButtonElement('resume'),
   dispose: getButtonElement('dispose'),
+  log: getButtonElement('log')
 }
 
 const controls = {
@@ -69,7 +70,30 @@ async function start() {
   const context = new AudioContext({ sampleRate })
   await context.audioWorklet.addModule('processor.js')
   const buffer = await bufferPromise
-  const node = new ClipNode(context, { processorOptions: { buffer: float32ArrayFromAudioBuffer(buffer) } });
+  const node = new ClipNode(context, {
+    processorOptions: {
+      buffer: float32ArrayFromAudioBuffer(buffer),
+      crossfadeDuration: controls.loopCrossfade.value,
+      loopStart: controls.loopStart.value,
+      duration: controls.duration.value,
+      enableCrossfade: controls.loopCrossfade.elements.toggle.checked,
+      enableDetune: params.detune.elements.toggle.checked,
+      enableFadeIn: controls.fadeIn.elements.toggle.checked,
+      enableFadeOut: controls.fadeOut.elements.toggle.checked,
+      enableGain: params.gain.elements.toggle.checked,
+      enableHighpass: params.highpass.elements.toggle.checked,
+      enableLowpass: params.lowpass.elements.toggle.checked,
+      enablePan: params.pan.elements.toggle.checked,
+      enablePlaybackRate: params.playBackRate.elements.toggle.checked,
+      fadeInDuration: controls.fadeIn.value,
+      fadeOutDuration: controls.fadeOut.value,
+      loop: elements.loop.checked,
+      loopEnd: controls.loopEnd.value,
+      offset: controls.offset.value,
+
+    }
+  });
+
   node.connect(context.destination)
 
   // states
@@ -86,6 +110,7 @@ async function start() {
   states.pause.onclick = () => node.pause(context.currentTime + controls.stopDelay.value)
   states.resume.onclick = () => node.resume(context.currentTime + controls.startDelay.value)
   states.dispose.onclick = () => node.dispose()
+  states.log.onclick = () => node.logState()
 
   // controls
   elements.loop.addEventListener('click', () => {

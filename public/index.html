@@ -33,29 +33,36 @@
 <button id="pause">Pause</button>
 <button id="resume">Resume</button>
 <button id="dispose">Dispose</button>
+<button id="log">Log State</button>
 </section>
 <hr>
 
 <section id="controls">
-<audio-control label="Playhead" step=1 min=0 max=480000 value=0 tempo=116></audio-control>
+<audio-control label="Playhead" step=1 min=0 max=480000 value=0 tempo=116 title="The current sample position of the playback of the buffer."></audio-control>
 
-<audio-control label="Offset" step=0.1 min=0 max=4 value=0 tempo=116 snap="bar"></audio-control>
-<audio-control label="Duration" step=0.1 min=-1 max=40 value=-1 tempo=116 snap="none"></audio-control>
-<audio-control label="StartDelay" step=0.1 min=0 max=4 value=0 tempo=116 snap="beat"></audio-control>
-<audio-control label="StopDelay" step=0.1 min=0 max=4 value=0 tempo=116 snap="beat"></audio-control>
-<audio-control label="FadeIn" step=0.1 min=0 max=4 value=0 tempo=116 snap="beat"></audio-control>
-<audio-control label="FadeOut" step=0.1 min=0 max=4 value=0 tempo=116 snap="beat"></audio-control>
+<audio-control label="Offset" step=0.1 min=0 max=4 value=0 tempo=116 snap="bar" title="At which point in the buffer the playback should start from when clicking the start button."></audio-control>
+<audio-control label="Duration" step=0.1 min=-1 max=40 value=-1 tempo=116 snap="none" title="For how long to play before auto-stopping. In seconds"></audio-control>
+<audio-control label="StartDelay" step=0.1 min=0 max=4 value=0 tempo=116 snap="beat" title="How long to wait before starting when clicking the start button."></audio-control>
+<audio-control label="StopDelay" step=0.1 min=0 max=4 value=0 tempo=116 snap="beat" title="How long to wait to before stopping when clicking the stop button."></audio-control>
+<audio-control label="FadeIn" step=0.1 min=0 max=4 value=0 tempo=116 snap="beat" title="Duration of fadeIn when starting playback, in seconds."></audio-control>
+<audio-control label="FadeOut" step=0.1 min=0 max=4 value=0 tempo=116 snap="beat" title="Duration of FadeOut at the end of playback, in seconds.""></audio-control>
 
 <label for="loop">Loop</label><input type="checkbox" id="loop">
 <audio-control label="LoopStart" step=0.001 min=0 max=1 value=0 tempo=116 snap="bar"></audio-control>
 <audio-control label="LoopEnd" step=0.001 min=0 max=1 value=0 tempo=116 snap="bar"></audio-control>
 <audio-control label="LoopCrossfade" step=0.001 min=0 max=4 value=0 tempo=116 snap="8th"></audio-control>
 
-<audio-control label="PlaybackRate" min=-2 max=2 value=1 precision="2" preset="playbackRate" snap></audio-control>
-<audio-control label="Detune" step=100 min=-2400 max=2400 value=0 precision="4" preset="cents" snap></audio-control>
-<audio-control label="Gain" precision=3 min=-100 max=0 value=0 preset="gain" transform="dB" snap></audio-control>
-<audio-control label="Pan" step=0.1 min=-1 max=1 value=0></audio-control>
-<audio-control label="Lowpass" step=1 min=32 max=16385 value=16384 preset="hertz" snap></audio-control>
-<audio-control label="Highpass" step=1 min=32 max=16384 value=32 preset="hertz" snap></audio-control>
+<audio-control label="PlaybackRate" min=-2 max=2 value=1 precision="2" preset="playbackRate" snap title="How fast to play the audio, negative rates will play in reverse."></audio-control>
+<audio-control label="Detune" step=100 min=-2400 max=2400 value=0 precision="4" preset="cents" snap title="Change pitch in cents, 100 cents is on semitone, 1200 cents is one octave."></audio-control>
+<audio-control label="Gain" precision=3 min=-100 max=0 value=0 preset="gain" transform="dB" snap title="The amplitude modifier of the signal."></audio-control>
+<audio-control label="Pan" step=0.1 min=-1 max=1 value=0 preset="pan" snap title="-1 is full left, 1 is full right, linear"></audio-control>
+<audio-control label="Lowpass" step=1 min=32 max=16385 value=16384 preset="hertz" snap title="cutoff frequency for low end"></audio-control>
+<audio-control label="Highpass" step=1 min=32 max=16384 value=32 preset="hertz" snap title="cutoff frequency for high end."></audio-control>
 </section>
 <hr>
+<div>Ideas:
+  <span>Steal</span>
+  <span>CrossfadeStart</span>
+  <span>CrossfadeEnd</span>
+  <span>AudioCanvas Diplaying the waveform, playhead and the settings in a visual way.</span>
+</div>

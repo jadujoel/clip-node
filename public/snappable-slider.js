@@ -55,6 +55,39 @@ const gainPreset = {
   skew: 6,
 }
 
+/** @type {SnappableSliderProperties} */
+const panPreset = {
+  snaps: [
+    -1, -0.75, -0.5, -0.25, 0, 0.25, 0.5, 0.75, 1
+  ],
+  min: -1,
+  max: 1,
+  skew: 1
+}
+
+/**
+ * @param {string} preset
+ * @returns {SnappableSliderProperties}
+ */
+function getPropsFromPreset(preset) {
+    switch (preset) {
+      case 'hertz':
+        return hertzPreset
+      case 'decibel':
+        return decibelPreset
+      case 'cents':
+        return centsPreset
+      case 'playbackRate':
+        return playbackRatePreset
+      case 'gain':
+        return gainPreset
+      case 'pan':
+        return panPreset
+      default:
+        return {}
+    }
+  }
+
 let isOptionKeyHeld = false
 
 document.addEventListener('keydown', (e) => {
@@ -389,7 +422,7 @@ export class SnappableSlider extends HTMLElement {
     if (props.preset !== 'none') {
       props = {
         ...props,
-        ...this.getPropsFromPreset(props.preset)
+        ...getPropsFromPreset(props.preset)
       }
     }
     this.setAttribute('min', props.min.toString())
@@ -404,30 +437,9 @@ export class SnappableSlider extends HTMLElement {
 
   /**
    * @param {string} preset
-   * @returns {SnappableSliderProperties}
-   */
-  getPropsFromPreset(preset) {
-    switch (preset) {
-      case 'hertz':
-        return hertzPreset
-      case 'decibel':
-        return decibelPreset
-      case 'cents':
-        return centsPreset
-      case 'playbackRate':
-        return playbackRatePreset
-      case 'gain':
-        return gainPreset
-      default:
-        return {}
-    }
-  }
-
-  /**
-   * @param {string} preset
    */
   setPreset(preset) {
-    this.setProps(this.getPropsFromPreset(preset))
+    this.setProps(getPropsFromPreset(preset))
   }
 
   /**

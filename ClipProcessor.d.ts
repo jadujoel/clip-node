@@ -60,6 +60,7 @@ type ClipProcessorMessageRx
   | ClipProcessorFadeOutMessageRx
   | ClipProcessorLoopCrossfadeMessageRx
   | ClipProcessorToggleMessageRx
+  | ClipProcessorLogStateMessageRx
 
 type ClipProcessorMessageType
   = 'buffer'
@@ -78,6 +79,7 @@ type ClipProcessorMessageType
   | 'fadeOut'
   | 'loopCrossfade'
   | ClipProcessorToggleMessageType
+  | 'logState'
 
 type ClipProcessorToggleMessageType =
   'toggleFadeIn'
@@ -89,6 +91,10 @@ type ClipProcessorToggleMessageType =
   | 'toggleLowpass'
   | 'toggleDetune'
   | 'togglePlaybackRate'
+
+interface ClipProcessorLogStateMessageRx {
+  readonly type: 'logState'
+}
 
 interface ClipProcessorToggleMessageRx {
   readonly type: ClipProcessorToggleMessageType
