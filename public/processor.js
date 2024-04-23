@@ -18,10 +18,11 @@ const State = {
  */
 function getProperties({
     buffer = [],
-    loopStart = 0,
     duration = -1,
-    loopEnd = (buffer[0]?.length ?? 0) * sampleRate,
     loop = false,
+    loopStart = 0,
+    loopEnd = (buffer[0]?.length ?? 0) * sampleRate,
+    loopCrossfade = 0,
     playhead = 0,
     offset = 0,
     startWhen = 0,
@@ -33,10 +34,10 @@ function getProperties({
     timesLooped = 0,
     fadeInDuration = 0,
     fadeOutDuration = 0,
-    crossfadeDuration = 0,
-    enableCrossfade = crossfadeDuration > 0,
     enableFadeIn = fadeInDuration > 0,
     enableFadeOut = fadeOutDuration > 0,
+    enableLoopCrossfade = loopCrossfade > 0,
+    // enableLoopCrossfade = true,
     enableHighpass = true,
     enableLowpass = true,
     enableGain = true,
@@ -46,10 +47,11 @@ function getProperties({
 } = {}) {
     return {
         buffer,
-        loopStart,
-        duration,
-        loopEnd,
         loop,
+        loopStart,
+        loopEnd,
+        loopCrossfade,
+        duration,
         playhead,
         offset,
         startWhen,
@@ -61,8 +63,6 @@ function getProperties({
         timesLooped,
         fadeInDuration,
         fadeOutDuration,
-        crossfadeDuration,
-        enableCrossfade,
         enableFadeIn,
         enableFadeOut,
         enableHighpass,
@@ -71,6 +71,7 @@ function getProperties({
         enablePan,
         enableDetune,
         enablePlaybackRate,
+        enableLoopCrossfade,
     }
 }
 
@@ -222,17 +223,17 @@ class ClipProcessor extends AudioWorkletProcessor {
             case 'loopEnd':
                 this.properties.loopEnd = data;
             break;
+            case 'loopCrossfade':
+                this.properties.loopCrossfade = data;
+            break;
             case 'playhead':
-                this.properties.playhead = data;
+                this.properties.playhead = Math.floor(data);
             break;
             case 'fadeIn':
                 this.properties.fadeInDuration = data
             break
             case 'fadeOut':
                 this.properties.fadeOutDuration = data
-            break
-            case 'loopCrossfade':
-                this.properties.crossfadeDuration = data
             break
             case 'toggleGain':
                 this.properties.enableGain = data ?? !this.properties.enableGain
@@ -252,6 +253,11 @@ class ClipProcessor extends AudioWorkletProcessor {
             case 'togglePlaybackRate':
                 this.properties.enablePlaybackRate = data ?? !this.properties.enablePlaybackRate
             break
+            case 'toggleLoopCrossfade':
+                console.log('before', this.properties)
+                this.properties.enableLoopCrossfade = data ?? !this.properties.enableLoopCrossfade
+                console.log('after', this.properties)
+            break;
             case 'logState':
                 console.log(this.properties)
             break
@@ -336,6 +342,9 @@ class ClipProcessor extends AudioWorkletProcessor {
         const {
             buffer,
             loop,
+            loopStart,
+            loopEnd,
+            loopCrossfade,
             stopWhen,
             playedSamples,
             enableLowpass,
@@ -344,12 +353,10 @@ class ClipProcessor extends AudioWorkletProcessor {
             enablePan,
             enableFadeOut,
             enableFadeIn,
+            enableLoopCrossfade,
             playhead,
             fadeInDuration,
             fadeOutDuration,
-            crossfadeDuration,
-            loopStart,
-            loopEnd,
         } = properties
 
         const nc = Math.min(buffer.length, output0.length)
@@ -357,73 +364,174 @@ class ClipProcessor extends AudioWorkletProcessor {
         const durationSamples = this.properties.duration * sampleRate
 
         // this should only be done if using loop true
-        const loopStartSamples = loopStart * sampleRate
-        let loopEndSamples = loopEnd * sampleRate
-        if (loopEndSamples <= loopStartSamples + 2048) {
-            loopEndSamples = loopStartSamples + 2048
-        }
-        let loopSamples = loopEndSamples - loopStartSamples
-        const fadeInSamples = Math.min(fadeInDuration * sampleRate, loopSamples)
-        const fadeOutSamples = Math.min(fadeOutDuration * sampleRate, loopSamples)
-        let xfadeSamples = Math.min(crossfadeDuration * sampleRate, loopSamples)
+        // const loopStartSamples = Math.floor(loopStart * sampleRate)
+        // let loopEndSamples = Math.floor(loopEnd * sampleRate)
+        // if (loopEndSamples <= loopStartSamples + 2048) {
+            // loopEndSamples = loopStartSamples + 2048
+        // }
+        // loopEndSamples = Math.min(loopEndSamples, sourceLength)
+        // let loopSamples = loopEndSamples - loopStartSamples
 
-        // find the indices to be used based on the playback rate and detune etc.
+        // const fadeInSamples = Math.floor(Math.min(fadeInDuration * sampleRate, loopSamples))
+        // const fadeOutSamples = Math.floor(Math.min(fadeOutDuration * sampleRate, loopSamples))
+
+        // remove
+        // let xfadeSamples = 0
+
+        // find the indexes to be used based on the playback rate and detune etc.
+        // const {
+        //     indexes,
+        //     loopFadeInindexes,
+        //     playhead: updatedPlayhead,
+        //     ended,
+        //     looped,
+        // } = getPlayindexes(
+        //     playbackRates,
+        //     detunes,
+        //     loop,
+        //     loopStartSamples,
+        //     loopEndSamples,
+        //     durationSamples,
+        //     sourceLength,
+        //     ns,
+        //     playedSamples,
+        //     playhead,
+        //     xfadeSamples
+        // )
+
+
+        // Constants setup
+        const SAMPLE_BLOCK_SIZE = 128;
+        const loopCrossfadeSamples = Math.floor(sampleRate * loopCrossfade);
+        const loopStartSamples = Math.min(Math.floor(loopStart * sampleRate), sourceLength - SAMPLE_BLOCK_SIZE);
+        const loopEndSamples = Math.min(Math.floor(loopEnd * sampleRate), sourceLength);
+        const loopLengthSamples = loopEndSamples - loopStartSamples;
+
         const {
-            indices,
-            loopFadeInIndices,
-            playhead: updatedPlayhead,
+            indexes,
             ended,
             looped,
-        } = getPlayIndices(
-            playbackRates,
-            detunes,
+            playhead: updatedPlayhead
+        } = findIndexesNormal({
+            bufferLength: sourceLength,
             loop,
+            playhead,
             loopStartSamples,
             loopEndSamples,
-            durationSamples,
-            sourceLength,
-            ns,
-            playedSamples,
-            playhead,
-            xfadeSamples
-        )
+            durationSamples
+        })
+        fill(output0, buffer, indexes)
 
-        fill(output0, buffer, indices)
 
-        const xfadeLength = loopFadeInIndices.length
-        if (xfadeLength > 0) {
-            console.log('xfade')
-            for (let i = 0; i < xfadeLength; i++) {
-                const idx = loopFadeInIndices[i]
-                const remaining = loopStartSamples - idx
-                const frac = 1 - ((remaining - i) / xfadeSamples)
-                for (let ch = 0; ch < nc; ch++) {
-                    const sample = buffer[ch][idx] * frac
-                    output0[ch][i] = output0[ch][i] * (1-frac) + sample
+        const xfadeNumSamples = Math.min(Math.floor(loopCrossfade * sampleRate), loopLengthSamples);
+
+        // Check conditions for crossfade
+        const isWithinLoopRange = loop && playhead > loopStartSamples && playhead < loopEndSamples;
+        const needsCrossfadeLogic = enableLoopCrossfade && loopCrossfadeSamples > 0 && sourceLength > SAMPLE_BLOCK_SIZE;
+
+        if (isWithinLoopRange && needsCrossfadeLogic) {
+            processLoopFadeOut();
+            processLoopFadeIn();
+        }
+
+        function processLoopFadeOut() {
+            let endIndex = Math.min(loopStartSamples + xfadeNumSamples, loopEndSamples);
+            let numSamples = endIndex - loopStartSamples;
+            // if we are at the end of the buffer, use whats available untile the end
+            if (loopEndSamples + numSamples > sourceLength) {
+                numSamples = loopEndSamples - sourceLength
+                endIndex = loopStartSamples + numSamples
+            }
+            if (numSamples === 0) {
+                return
+            }
+            const isWithin = playhead > loopStartSamples && playhead < endIndex;
+            if (isWithin) {
+                const remaining = endIndex - playhead;
+                let index = Math.floor(loopEndSamples + numSamples - remaining)
+                const n = Math.min(remaining, SAMPLE_BLOCK_SIZE);
+                console.log({ numSamples, endIndex, index})
+                for (let i = 0; i < n; i++) {
+                    index++;
+                    const position = (numSamples - remaining) / numSamples; // 0 to 1
+                    const gain = Math.cos(Math.PI * position / 2);
+                    if (index > sourceLength || index < 0) {
+                        throw new Error(`index ${index} in loop fade out is out of bounds, sourceLength: ${sourceLength}`)
+                    }
+                    for (let ch = 0; ch < nc; ch++) {
+                        output0[ch][i] += buffer[ch][index] * gain;
+                    }
                 }
             }
         }
 
-        const shouldFadeIn = enableFadeIn && fadeInSamples > 0 && playedSamples < fadeInSamples;
-        if (shouldFadeIn) {
-            fadeIn(output0, fadeInSamples, playedSamples, ns)
-        }
-
-        if (enableFadeOut && fadeOutSamples > 0) {
-            // fadeout on stopped
-            if (state === State.Stopped) {
-                console.log('fadeout')
-                const remaining = Math.floor((stopWhen - currentTime) * sampleRate)
-                const fadeSamples = Math.min(ns, remaining)
-                fadeOut(output0, fadeSamples, remaining, fadeOutSamples, ns)
-            // fadeout on started without explicitly calling stop
-            } else if (playedSamples > (durationSamples - fadeOutSamples)) {
-                console.log('fadeout')
-                const remaining = durationSamples - playedSamples
-                const fadeSamples = Math.min(ns, remaining)
-                fadeOut(output0, fadeSamples, remaining, fadeOutSamples, ns)
+        function processLoopFadeIn() {
+            let startIndex = Math.max(loopEndSamples - xfadeNumSamples, loopStartSamples);
+            let numSamples = loopEndSamples - startIndex;
+            let firstIndex = loopStartSamples - numSamples;
+            if (firstIndex < 0) {
+                numSamples += firstIndex
+                startIndex = loopEndSamples - numSamples
+                firstIndex = 0
+            }
+            if (numSamples === 0) {
+                return
+            }
+            const isWithin = playhead > startIndex;
+            if (isWithin) {
+                let remaining = loopEndSamples - playhead;
+                let index = firstIndex + numSamples - remaining;
+                const n = Math.min(remaining, SAMPLE_BLOCK_SIZE);
+                for (let i = 0; i < n; i++) {
+                    index++
+                    remaining--
+                    const position = (numSamples - remaining) / numSamples // 0 to 1
+                    const gain = Math.sin(Math.PI * position / 2);
+                    if (index > sourceLength || index < 0) {
+                        throw new Error(`index ${index} in loop fade in is out of bounds, sourceLength: ${sourceLength}`)
+                    }
+                    for (let ch = 0; ch < nc; ch++) {
+                        output0[ch][i] += buffer[ch][index] * gain;
+                    }
+                }
             }
         }
+
+
+        // const xfadeLength = loopFadeInindexes.length
+        // if (xfadeLength > 0) {
+        //     console.log('xfade')
+        //     for (let i = 0; i < xfadeLength; i++) {
+        //         const idx = loopFadeInindexes[i]
+        //         const remaining = loopStartSamples - idx
+        //         const frac = 1 - ((remaining - i) / xfadeSamples)
+        //         for (let ch = 0; ch < nc; ch++) {
+        //             const sample = buffer[ch][idx] * frac
+        //             output0[ch][i] = output0[ch][i] * (1-frac) + sample
+        //         }
+        //     }
+        // }
+
+        // const shouldFadeIn = enableFadeIn && fadeInSamples > 0 && playedSamples < fadeInSamples;
+        // if (shouldFadeIn) {
+        //     fadeIn(output0, fadeInSamples, playedSamples, ns)
+        // }
+
+        // if (enableFadeOut && fadeOutSamples > 0) {
+        //     // fadeout on stopped
+        //     if (state === State.Stopped) {
+        //         console.log('fadeout')
+        //         const remaining = Math.floor((stopWhen - currentTime) * sampleRate)
+        //         const fadeSamples = Math.min(ns, remaining)
+        //         fadeOut(output0, fadeSamples, remaining, fadeOutSamples, ns)
+        //     // fadeout on started without explicitly calling stop
+        //     } else if (playedSamples > (durationSamples - fadeOutSamples)) {
+        //         console.log('fadeout')
+        //         const remaining = durationSamples - playedSamples
+        //         const fadeSamples = Math.min(ns, remaining)
+        //         fadeOut(output0, fadeSamples, remaining, fadeOutSamples, ns)
+        //     }
+        // }
 
         if (enableLowpass) {
             lowpassFilter(output0, lowpass)
@@ -453,12 +561,12 @@ class ClipProcessor extends AudioWorkletProcessor {
             this.port.postMessage({ type: "ended" })
         }
 
-        this.properties.playedSamples += indices.length
+        this.properties.playedSamples += indexes.length
         this.properties.playhead = updatedPlayhead
 
         const numNans = checkNans(output0)
         if (numNans > 0) {
-            console.log({numNans, indices, playhead: updatedPlayhead, ended, looped}, buffer[0].length)
+            console.log({numNans, indexes, playhead: updatedPlayhead, ended, looped, sourceLength})
             return false
         }
 
@@ -467,6 +575,123 @@ class ClipProcessor extends AudioWorkletProcessor {
         }
         return ondone()
     }
+}
+
+/**
+ * Calculates the gain for the fade in effect.
+ * Using an equal power strategy
+ * given the total number of samples for the fade In
+ * and the current position in the fade In.
+ * @param {number} fadeInNumSamples
+ * @param {number} fadeInPos
+ */
+function calculateFadeInGain(fadeInNumSamples, fadeInPos) {
+    const angle = Math.PI * fadeInPos / fadeInNumSamples
+    return Math.cos(angle)
+}
+
+// /**
+//  * @param {ClipProcessor}
+//  */
+// function findPlayindexesNormalWithoutLoop(props) {
+//     if (playhead + 128 < bufferLength) {
+//         const length = 128
+//         const indexes = Array.from({ length })
+//         for (let i = 0; i < 128; i++) {
+//             indexes[i] = Math.floor(playhead + i)
+//         }
+//         return indexes
+//     }
+//     const length = bufferLength - playhead
+//     if (length < 0) {
+//         return []
+//     }
+//     const indexes = Array.from({ length })
+//     for (let i = 0; i < length; i++) {
+//         indexes[i] = playhead + i
+//     }
+//     return indexes
+// }
+
+
+/**
+ * Finds the indexes to use for playback this process block.
+ * Without applying any changes regarding playback-rate or detune.
+ * @param {BlockParameters} props
+ * @returns {BlockReturnState}
+ */
+function findIndexesNormal(props) {
+    const { playhead, bufferLength, loop, loopStartSamples, loopEndSamples } = props;
+
+    // Determine the number of indexes needed
+    let length = 128;
+    if (!loop && (playhead + 128 > bufferLength)) {
+        length = bufferLength - playhead;
+    }
+
+    // Preallocate array with determined length
+    const indexes = new Array(length);
+    let nextPlayhead;
+
+    // Handling non-looping playback
+    if (!loop) {
+        for (let i = 0, head = playhead; i < length; i++, head++) {
+            indexes[i] = head;
+        }
+        nextPlayhead = playhead + length;
+        return {
+            playhead: nextPlayhead,
+            indexes,
+            looped: false,
+            ended: nextPlayhead >= bufferLength
+        };
+    }
+
+    // Handling looping playback
+    let head = playhead;
+    let looped = false;
+    for (let i = 0; i < length; i++, head++) {
+        if (head >= loopEndSamples) {
+            head = loopStartSamples + (head - loopEndSamples);
+            looped = true;
+        }
+        indexes[i] = head;
+    }
+    nextPlayhead = head;
+
+    return {
+        indexes,
+        looped,
+        ended: false,
+        playhead: nextPlayhead
+    };
+}
+
+/**
+ * Finds the indexes to use for playback this process block.
+ * While considering the playback-rate.
+ * @returns {number[]}
+ */
+function findPLayindexesWithPlaybackRate() {
+    return []
+}
+
+/**
+ * Finds the indexes to use for playback this process block.
+ * While considering the detune.
+ * @returns {number[]}
+ */
+function findPlayindexesWithDetune() {
+    return []
+}
+
+/**
+ * Finds the indexes to use for playback this process block.
+ * While considering the playback-rate and detune.
+ * @returns {number[]}
+ */
+function findPLayindexesWithPlaybackRateAndDetune() {
+    return []
 }
 
 /**
@@ -527,16 +752,16 @@ function fadeOut(output0, fadeSamples, remaining, fadeOutSamples, ns) {
 /**
  * @param {Float32Array[]} target
  * @param {Float32Array[]} source
- * @param {number[]} indices
+ * @param {number[]} indexes
  * @returns {void}
  */
-function fill(target, source, indices) {
-    for (let i = 0; i < indices.length; i++) {
+function fill(target, source, indexes) {
+    for (let i = 0; i < indexes.length; i++) {
         for (let ch = 0; ch < target.length; ch++) {
-            target[ch][i] = source[ch][indices[i]]
+            target[ch][i] = source[ch][indexes[i]]
         }
     }
-    for (let i = indices.length; i < target[0].length; i++) {
+    for (let i = indexes.length; i < target[0].length; i++) {
         for (let ch = 0; ch < target.length; ch++) {
             target[ch][i] = 0
         }
@@ -568,14 +793,14 @@ function monoToStereo(signal) {
  * @param {number} playhead
  * @param {number} loopFadeInLength
  * @returns {{
- *  indices: number[],
- *  loopFadeInIndices: number[],
+ *  indexes: number[],
+ *  loopFadeInindexes: number[],
  *  playhead: number
  *  ended: boolean,
  *  looped: boolean
  * }}
  */
-function getPlayIndices(
+function getPlayindexes(
     playbackRates,
     detunes,
     loop,
@@ -593,9 +818,9 @@ function getPlayIndices(
     let ended = false
     let looped = false
     /** @type {number[]} */
-    let indices = []
+    let indexes = []
     /** @type {number[]} */
-    let loopFadeInIndices = []
+    let loopFadeInindexes = []
 
     for (let i = 0; i < ns; ++i) {
         if (playedSamples > durationSamples) {
@@ -616,7 +841,7 @@ function getPlayIndices(
                 if (loopFadeInLength > 0 && (playhead >= crossfadeStart && loopFadeInLength > 0)) {
                     const relativeToLoopStart = Math.floor(playhead - loopEndSamples)
                     const abs = loopStartSamples + relativeToLoopStart
-                    loopFadeInIndices.push(abs)
+                    loopFadeInindexes.push(abs)
                 }
                 if (playhead >= loopEndSamples) {
                     playhead = loopStartSamples
@@ -628,7 +853,7 @@ function getPlayIndices(
                 if (loopFadeInLength > 0 && (playhead <= crossfadeStart && loopFadeInLength > 0)) {
                     const relativeToLoopStart = Math.floor(playhead - loopStartSamples)
                     const abs = loopStartSamples + relativeToLoopStart
-                    loopFadeInIndices.push(abs)
+                    loopFadeInindexes.push(abs)
                 }
                 if (playhead < loopStartSamples) {
                     playhead = loopEndSamples
@@ -644,14 +869,14 @@ function getPlayIndices(
 
         // const index = Math.floor(playhead -1)
         const index = Math.max(Math.floor(playhead -1), 0)
-        indices.push(index)
+        indexes.push(index)
 
         // Update playhead position
         playhead += rate;
     }
     return {
-        indices,
-        loopFadeInIndices,
+        indexes,
+        loopFadeInindexes,
         playhead,
         ended,
         looped

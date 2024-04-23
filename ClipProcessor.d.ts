@@ -21,6 +21,7 @@ interface ClipProcessorOptions {
   loop?: boolean,
   loopStart?: number,
   loopEnd?: number,
+  loopCrossfade?: number
   offset?: number,
   duration?: number,
   playhead?: number,
@@ -33,10 +34,9 @@ interface ClipProcessorOptions {
   timesLooped?: number
   fadeInDuration?: number
   fadeOutDuration?: number
-  crossfadeDuration?: number
   enableFadeIn?: boolean
   enableFadeOut?: boolean
-  enableCrossfade?: boolean
+  enableLoopCrossfade?: boolean
   enableGain?: boolean
   enablePan?: boolean
   enableHighpass?: boolean
@@ -44,6 +44,24 @@ interface ClipProcessorOptions {
   enableDetune?: boolean
   enablePlaybackRate?: boolean
 }
+
+interface BlockParameters {
+  readonly playhead: number
+  readonly durationSamples: number
+  readonly loop: boolean
+  readonly loopStartSamples: number
+  readonly loopEndSamples: number
+  readonly bufferLength: number
+}
+
+interface BlockReturnState {
+  readonly playhead: number
+  readonly ended: boolean
+  readonly looped: boolean
+  readonly indexes: number[]
+}
+
+type BlockState = BlockLoopState
 
 type ClipProcessorMessageRx
   = ClipProcessorBufferMessageRx
@@ -84,7 +102,7 @@ type ClipProcessorMessageType
 type ClipProcessorToggleMessageType =
   'toggleFadeIn'
   | 'toggleFadeOut'
-  | 'toggleCrossfade'
+  | 'toggleLoopCrossfade'
   | 'toggleGain'
   | 'togglePan'
   | 'toggleHighpass'
@@ -94,6 +112,7 @@ type ClipProcessorToggleMessageType =
 
 interface ClipProcessorLogStateMessageRx {
   readonly type: 'logState'
+  readonly data?: never
 }
 
 interface ClipProcessorToggleMessageRx {

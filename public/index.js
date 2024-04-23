@@ -73,10 +73,8 @@ async function start() {
   const node = new ClipNode(context, {
     processorOptions: {
       buffer: float32ArrayFromAudioBuffer(buffer),
-      crossfadeDuration: controls.loopCrossfade.value,
       loopStart: controls.loopStart.value,
       duration: controls.duration.value,
-      enableCrossfade: controls.loopCrossfade.elements.toggle.checked,
       enableDetune: params.detune.elements.toggle.checked,
       enableFadeIn: controls.fadeIn.elements.toggle.checked,
       enableFadeOut: controls.fadeOut.elements.toggle.checked,
@@ -85,6 +83,7 @@ async function start() {
       enableLowpass: params.lowpass.elements.toggle.checked,
       enablePan: params.pan.elements.toggle.checked,
       enablePlaybackRate: params.playBackRate.elements.toggle.checked,
+      enableLoopCrossfade: controls.loopCrossfade.elements.toggle.checked,
       fadeInDuration: controls.fadeIn.value,
       fadeOutDuration: controls.fadeOut.value,
       loop: elements.loop.checked,

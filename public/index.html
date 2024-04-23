@@ -38,7 +38,7 @@
 <hr>
 
 <section id="controls">
-<audio-control label="Playhead" step=1 min=0 max=480000 value=0 tempo=116 title="The current sample position of the playback of the buffer."></audio-control>
+<audio-control label="Playhead" step=1 min=0 max=480000 value=0 tempo=116 snap="int" title="The current sample position of the playback of the buffer."></audio-control>
 
 <audio-control label="Offset" step=0.1 min=0 max=4 value=0 tempo=116 snap="bar" title="At which point in the buffer the playback should start from when clicking the start button."></audio-control>
 <audio-control label="Duration" step=0.1 min=-1 max=40 value=-1 tempo=116 snap="none" title="For how long to play before auto-stopping. In seconds"></audio-control>
@@ -50,7 +50,7 @@
 <label for="loop">Loop</label><input type="checkbox" id="loop">
 <audio-control label="LoopStart" step=0.001 min=0 max=1 value=0 tempo=116 snap="bar"></audio-control>
 <audio-control label="LoopEnd" step=0.001 min=0 max=1 value=0 tempo=116 snap="bar"></audio-control>
-<audio-control label="LoopCrossfade" step=0.001 min=0 max=4 value=0 tempo=116 snap="8th"></audio-control>
+<audio-control label="LoopCrossfade" step=0.001 min=0 max=1 value=0 tempo=116 snap="beat"></audio-control>
 
 <audio-control label="PlaybackRate" min=-2 max=2 value=1 precision="2" preset="playbackRate" snap title="How fast to play the audio, negative rates will play in reverse."></audio-control>
 <audio-control label="Detune" step=100 min=-2400 max=2400 value=0 precision="4" preset="cents" snap title="Change pitch in cents, 100 cents is on semitone, 1200 cents is one octave."></audio-control>
