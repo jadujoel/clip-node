@@ -24,7 +24,7 @@ export async function load(url) {
   response = await fetch(url);
   console.log(`[cache] Fetched ${url} in ${(performance.now() - startTime).toFixed(0)}ms`);
   if (response.ok) {
-    cache.put(url, response.clone()); // Clone the response because it's a stream
+    cache.put(url, response.clone()).catch(_ => undefined); // Clone the response because it's a stream
     console.log(`[cache] Loaded ${url} from network in ${(performance.now() - mainTime).toFixed(0)}ms`)
     return response.arrayBuffer();
   }

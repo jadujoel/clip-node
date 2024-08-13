@@ -279,6 +279,7 @@ class ClipProcessor extends AudioWorkletProcessor {
      * @param {Record<string, Float32Array>} parameters
      */
     process(_inputs, outputs, parameters) {
+        try {
         let state = this.properties.state
         if (this.properties.state === State.Disposed) {
             return false
@@ -406,20 +407,23 @@ class ClipProcessor extends AudioWorkletProcessor {
         const loopStartSamples = Math.min(Math.floor(loopStart * sampleRate), sourceLength - SAMPLE_BLOCK_SIZE);
         const loopEndSamples = Math.min(Math.floor(loopEnd * sampleRate), sourceLength);
         const loopLengthSamples = loopEndSamples - loopStartSamples;
-
-        const {
-            indexes,
-            ended,
-            looped,
-            playhead: updatedPlayhead
-        } = findIndexesNormal({
+        const options = {
             bufferLength: sourceLength,
             loop,
             playhead,
             loopStartSamples,
             loopEndSamples,
-            durationSamples
-        })
+            durationSamples,
+            playbackRates
+        }
+        const {
+            indexes,
+            ended,
+            looped,
+            playhead: updatedPlayhead
+        } = this.properties.enablePlaybackRate
+            ? findIndexesWithPlaybackRates(options)
+            : findIndexesNormal(options)
         fill(output0, buffer, indexes)
 
 
@@ -498,6 +502,50 @@ class ClipProcessor extends AudioWorkletProcessor {
         }
 
 
+        if (enableFadeIn && fadeInDuration > 0) {
+            processFadeIn()
+        }
+
+        if (enableFadeIn && fadeOutDuration > 0) {
+            processFadeOut()
+        }
+
+        function processFadeIn() {
+            const fadeInSamples = Math.floor(fadeInDuration * sampleRate);
+            let remaining = fadeInSamples - playedSamples
+            if (remaining > 0) {
+                const n = Math.min(remaining, SAMPLE_BLOCK_SIZE);
+                const doubleFadeInSamples = fadeInSamples * 2
+                for (let i = 0; i < n; i++) {
+                    const gain = Math.cos(Math.PI * (remaining - i) / doubleFadeInSamples);
+                    if (i === 0) {
+                        console.log('fade in gain', gain)
+                    }
+                    for (let ch = 0; ch < nc; ch++) {
+                        output0[ch][i] *= gain;
+                    }
+                }
+            }
+        }
+
+        function processFadeOut() {
+            const fadeOutSamples = Math.floor(fadeOutDuration * sampleRate);
+            const remainingDuration = stopWhen - currentTime
+            const remainingSamples = Math.floor(sampleRate * remainingDuration)
+            if (remainingSamples < fadeOutSamples) {
+                console.log('fadeout')
+                const remaining = fadeOutSamples - remainingSamples;
+                const n = Math.min(remaining, SAMPLE_BLOCK_SIZE);
+                const doubleFadeOutSamples = fadeOutSamples * 2;
+                for (let i = 0; i < n; i++) {
+                    const gain = Math.sin(Math.PI * (remaining - i) / doubleFadeOutSamples);
+                    for (let ch = 0; ch < nc; ch++) {
+                        output0[ch][i] *= gain;
+                    }
+                }
+            }
+        }
+
         // const xfadeLength = loopFadeInindexes.length
         // if (xfadeLength > 0) {
         //     console.log('xfade')
@@ -567,13 +615,14 @@ class ClipProcessor extends AudioWorkletProcessor {
         const numNans = checkNans(output0)
         if (numNans > 0) {
             console.log({numNans, indexes, playhead: updatedPlayhead, ended, looped, sourceLength})
-            return false
+            return true
         }
 
         for (let i = 1; i < outputs.length; i++) {
             copy(output0, outputs[i])
         }
         return ondone()
+        } catch (e) { console.log(e); return true }
     }
 }
 
@@ -630,7 +679,7 @@ function findIndexesNormal(props) {
     }
 
     // Preallocate array with determined length
-    const indexes = new Array(length);
+    const indexes = Array.from({ length });
     let nextPlayhead;
 
     // Handling non-looping playback
@@ -667,13 +716,58 @@ function findIndexesNormal(props) {
     };
 }
 
+
 /**
  * Finds the indexes to use for playback this process block.
- * While considering the playback-rate.
- * @returns {number[]}
+ * Without applying any changes regarding playback-rate or detune.
+ * @param {BlockParameters} props
+ * @returns {BlockReturnState}
  */
-function findPLayindexesWithPlaybackRate() {
-    return []
+function findIndexesWithPlaybackRates(props) {
+    const { playhead, bufferLength, loop, loopStartSamples, loopEndSamples, playbackRates } = props;
+
+    // Determine the number of indexes needed
+    let length = 128;
+    if (!loop && (playhead + 128 > bufferLength)) {
+        length = bufferLength - playhead;
+    }
+
+    // Preallocate array with determined length
+    const indexes = Array.from({ length });
+
+    let head = playhead
+    let looped = false;
+    if (loop) {
+        for (let i = 0; i < length; i++) {
+            indexes[i] = Math.min(Math.max(Math.floor(head), 0), bufferLength);
+            const rate = playbackRates[i] ?? playbackRates[0] ?? 1
+            head += rate
+            if (rate >= 0 && (head > loopEndSamples || head > bufferLength)) {
+                head = loopStartSamples
+                looped = true
+            } else if (rate < 0 && (head < loopStartSamples || head < 0)) {
+                head = loopEndSamples
+                looped = true
+            }
+        }
+        return {
+            playhead: head,
+            indexes,
+            looped,
+            ended: false,
+        };
+    } else {
+        for (let i = 0; i < length; i++) {
+            indexes[i] = Math.min(Math.max(Math.floor(head), 0), bufferLength);
+            head += playbackRates[i] ?? playbackRates[0] ?? 1
+        }
+    }
+    return {
+        playhead: head,
+        indexes,
+        looped: false,
+        ended: head >= bufferLength || head < 0
+    };
 }
 
 /**

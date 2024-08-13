@@ -52,6 +52,7 @@ interface BlockParameters {
   readonly loopStartSamples: number
   readonly loopEndSamples: number
   readonly bufferLength: number
+  readonly playbackRates: Float32Array
 }
 
 interface BlockReturnState {

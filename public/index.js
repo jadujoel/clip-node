@@ -46,6 +46,7 @@ const elements = {
   ...infos,
   ...states,
   loop: getInputElement("loop"),
+  loadSound: getButtonElement("load-sound"),
   ...controls,
   ...params,
 }
@@ -62,11 +63,47 @@ if (!searchParamsIncludes('disable-state')) {
 }
 
 const sampleRate = 48000
-const bufferPromise = decode('lml.webm')
+let bufferPromise = decode('lml.webm')
 
 elements.start.addEventListener('click', start, { once: true })
 
+console.log("loadSound el", elements.loadSound)
+elements.loadSound.onclick = () => {
+  // Create a dialog element
+  const dialog = document.createElement("dialog");
+  console.log("dialo g el", dialog)
+  // Create an input element for file selection
+  const fileInput = document.createElement("input");
+  fileInput.type = "file";
+  fileInput.accept = "audio/*"; // Restrict to audio files only
+
+  // Append the input to the dialog
+  dialog.appendChild(fileInput);
+
+  // Add event listener for when a file is selected
+  fileInput.onchange = () => {
+      const file = fileInput.files?.[0];
+      if (file) {
+        const blob = new Blob([file], { type: file.type });
+        const url = URL.createObjectURL(blob);
+        decode(url).then(buffer => {
+          console.log("updating buffer from", file)
+          bufferPromise = Promise.resolve(buffer)
+        })
+      }
+      dialog.close(); // Close the dialog after selection
+  };
+
+  // Append the dialog to the body
+  document.body.appendChild(dialog);
+
+  // Show the dialog
+  dialog.showModal();
+};
+
+
 async function start() {
+  console.log("start")
   const context = new AudioContext({ sampleRate })
   await context.audioWorklet.addModule('processor.js')
   const buffer = await bufferPromise
@@ -89,7 +126,6 @@ async function start() {
       loop: elements.loop.checked,
       loopEnd: controls.loopEnd.value,
       offset: controls.offset.value,
-
     }
   });
 
@@ -249,7 +285,8 @@ async function start() {
     })
   }
   // loadState()
-  load('lml.webm')
+  // load('lml.webm')
+
 }
 
 if (!searchParamsIncludes('disable-state')) {

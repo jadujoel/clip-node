@@ -18,6 +18,7 @@
       "DOM",
       "ESNext"
     ],
+    "target": "ESNext",
     // include the types from the file AudioWorklet.d.ts
     // "types": ["./AudioWorklet.d.ts"],
   },
